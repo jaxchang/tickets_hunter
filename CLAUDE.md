@@ -58,13 +58,16 @@ python src/settings.py               # 開啟設定介面
 
 ```bash
 python -m py_compile src/nodriver_tixcraft.py   # 語法檢查（修改過的檔案都要跑）
+python -m unittest discover -s tests            # 單元測試（需先 pip install requests）
 python build_scripts/build_local.py             # 打包並驗證能啟動（改動相依套件、.spec 或新增 import 時）
 ```
 
 宣告工作完成前必須實際執行上述指令，不得僅憑閱讀程式碼推斷結果。
 
-測試套件由維護者另行維護，公開庫不含 `tests/`。外部貢獻以 `py_compile` 與實機驗證為準，
-平台邏輯的改動請在 PR 說明實際跑過哪個活動、走到哪一頁。
+本 fork 自 #5 起在 repo 內維護 `tests/` 與 CI（`.github/workflows/ci.yml`：對 PR 與 main
+執行全部 `src/` 的 `py_compile` 與單元測試），與上游維護者「測試另外維護」的慣例不同，
+是 fork 擁有者的決定。平台邏輯的改動仍請在 PR 說明實際跑過哪個活動、走到哪一頁；
+無法實機驗證時，必須在 PR 明確寫出，不得以單元測試或 harness 代替宣告。
 
 ---
 
@@ -157,6 +160,11 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common  ->  util / settings
 - **主迴圈約每 50 毫秒跑一輪，同一個動作會被反覆呼叫。** 送出、填值這類有副作用的動作必須有
   防重入狀態（沿用各平台模組既有的 `_state` dict，不要新增模組層級全域變數），失敗也要有重試上限，
   否則錯誤的值會被每秒送出數十次。
+- **在 `_state` 新增快取或截止時間時，同一個改動必須寫明它的清除時機。** 寫明成功時清、離開
+  該頁面時清，或明確註記跨頁保留的理由；只寫入不清的狀態會在換頁後以過期或未過期的舊值影響
+  新頁面（#3 的刷新冷卻曾因此跨頁殘留，靠 code review 才發現）。code review 時逐一核對。
+- **改動任何頁面刷新行為前，先查 [刷新站點地圖](docs/03-mechanisms/11-reload-sites.md)** 分清
+  輪詢刷新與復原刷新（定義見 `GLOSSARY.md`）：兩者的定速與清除規則不同，不要一起改。
 - **等待迴圈用 `sleep_with_pause_check` / `asyncio_sleep_with_pause_check`**（`nodriver_common.py`），
   不要用 `tab.sleep()`，否則使用者按暫停無效。
 - **填寫輸入框用 `nodriver_common.CONST_NATIVE_INPUT_SETTER_JS`**，不要自己重寫 native setter。
