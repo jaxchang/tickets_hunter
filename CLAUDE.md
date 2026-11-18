@@ -305,3 +305,19 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common  ->  util / settings
 | PyInstaller 打包 | `docs/07-deployment/` |
 | macOS 使用與自行打包 | `guide/macos.md` |
 | 使用者手冊 | `guide/README.md` |
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in GitHub Issues for jaxchang/tickets_hunter. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage labels are used as-is (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
