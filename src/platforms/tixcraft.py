@@ -903,19 +903,24 @@ async def nodriver_ticketmaster_date_auto_select(tab, config_dict):
 
     # Auto reload if no match
     if auto_reload_coming_soon_page_enable and not is_date_clicked and len(formated_area_list) == 0 and _is_page_reload_enabled(config_dict, debug, "TICKETMASTER DATE"):
-        debug.log("[TICKETMASTER DATE] No dates available, reloading page...")
         try:
-            # Honor the user's refresh interval, the same way the area-select
-            # path does. The main loop spins every 50ms, so reloading without a
-            # delay here means 2-3 page loads per second while waiting for a
-            # sale to open -- exactly what trips Ticketmaster's EPS block
-            # (issue #378). sleep_with_pause_check keeps the pause button
-            # responsive during the wait.
+            # Pace reloads with a non-blocking cooldown instead of sleeping
+            # for the refresh interval (issue #3). The main loop spins every
+            # 50ms, so reloading without pacing here means 2-3 page loads per
+            # second while waiting for a sale to open -- exactly what trips
+            # Ticketmaster's EPS block (issue #378) -- while sleeping for the
+            # interval froze every other check for its whole duration.
             reload_interval = util.get_reload_interval(config_dict)
-            if reload_interval > 0:
-                await sleep_with_pause_check(tab, reload_interval, config_dict)
-            await tab.reload()
-            await tab.sleep(0.3)
+            previous_until = _state.get("ticketmaster_date_reload_cooldown_until", 0)
+            should_reload, cooldown_until = util.advance_reload_cooldown(
+                time.time(), previous_until, reload_interval)
+            _state["ticketmaster_date_reload_cooldown_until"] = cooldown_until
+            if should_reload:
+                debug.log("[TICKETMASTER DATE] No dates available, reloading page...")
+                await tab.reload()
+                await tab.sleep(0.3)
+            elif not previous_until:
+                debug.log(f"[TICKETMASTER DATE] Waiting {reload_interval}s before reload...")
         except:
             pass
 
@@ -1008,12 +1013,19 @@ async def nodriver_ticketmaster_area_auto_select(tab, config_dict, zone_info):
 
         if area_keyword and _is_page_reload_enabled(config_dict, debug, "TICKETMASTER AREA"):
             # Keyword specified but no match → might need to wait for availability
-            debug.log("[TICKETMASTER AREA] No areas matched keyword, reloading page...")
+            # Non-blocking cooldown paces the reload (issue #3): passes inside
+            # the interval return at once instead of sleeping through it.
             try:
                 reload_interval = util.get_reload_interval(config_dict)
-                if reload_interval > 0:
-                    await tab.sleep(reload_interval)
-                await tab.reload()
+                previous_until = _state.get("ticketmaster_area_reload_cooldown_until", 0)
+                should_reload, cooldown_until = util.advance_reload_cooldown(
+                    time.time(), previous_until, reload_interval)
+                _state["ticketmaster_area_reload_cooldown_until"] = cooldown_until
+                if should_reload:
+                    debug.log("[TICKETMASTER AREA] No areas matched keyword, reloading page...")
+                    await tab.reload()
+                elif not previous_until:
+                    debug.log(f"[TICKETMASTER AREA] Waiting {reload_interval}s before reload...")
             except:
                 pass
         elif not area_keyword:
@@ -1971,17 +1983,21 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
 
     # Auto refresh if no date was selected (for strict mode or sold out scenarios)
     if not is_date_clicked and _is_page_reload_enabled(config_dict, debug, "DATE SELECT"):
-        # Simple wait mode (consistent with TicketPlus/iBon/FamiTicket)
+        # Non-blocking cooldown (issue #3): record the deadline and return,
+        # so the main loop keeps re-checking the page while waiting.
         interval = util.get_reload_interval(config_dict)
-        if interval > 0:
+        previous_until = _state.get("date_reload_cooldown_until", 0)
+        should_reload, cooldown_until = util.advance_reload_cooldown(
+            time.time(), previous_until, interval)
+        _state["date_reload_cooldown_until"] = cooldown_until
+        if should_reload:
+            debug.log(f"[DATE SELECT] No date selected, reloading page...")
+            try:
+                await tab.reload()
+            except Exception:
+                pass
+        elif not previous_until:
             debug.log(f"[DATE SELECT] Waiting {interval}s before reload...")
-            await asyncio.sleep(interval)
-
-        debug.log(f"[DATE SELECT] No date selected, reloading page...")
-        try:
-            await tab.reload()
-        except Exception:
-            pass
 
     return is_date_clicked
 
@@ -2123,18 +2139,23 @@ async def nodriver_tixcraft_area_auto_select(tab, url, config_dict):
             except:
                 pass
 
-    # Auto refresh if needed (simple wait mode, consistent with TicketPlus/iBon/FamiTicket)
+    # Auto refresh if needed (non-blocking cooldown, issue #3: record the
+    # deadline and return, so the main loop keeps re-checking the page
+    # while waiting instead of sleeping through the interval)
     if is_need_refresh and _is_page_reload_enabled(config_dict, debug, "AREA SELECT"):
         interval = util.get_reload_interval(config_dict)
-        if interval > 0:
+        previous_until = _state.get("area_reload_cooldown_until", 0)
+        should_reload, cooldown_until = util.advance_reload_cooldown(
+            time.time(), previous_until, interval)
+        _state["area_reload_cooldown_until"] = cooldown_until
+        if should_reload:
+            debug.log(f"[AREA SELECT] Page reloading...")
+            try:
+                await tab.reload()
+            except Exception:
+                pass
+        elif not previous_until:
             debug.log(f"[AREA SELECT] Waiting {interval}s before reload...")
-            await asyncio.sleep(interval)
-
-        debug.log(f"[AREA SELECT] Page reloading...")
-        try:
-            await tab.reload()
-        except Exception:
-            pass
 
 async def nodriver_get_tixcraft_target_area(el, config_dict, area_keyword_item,
                                             area_list_cache=None, area_text_cache=None):
@@ -3534,6 +3555,11 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
         if config_dict["date_auto_select"]["enable"]:
             domain_name = url.split('/')[2]
             is_date_selected = await nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
+    else:
+        # The date reload cooldown belongs to the date page (issue #3): drop
+        # it anywhere else, so a stale deadline can neither fire an unpaced
+        # reload nor postpone the first reload on a different page.
+        _state.pop("date_reload_cooldown_until", None)
 
     # T010: Ticketmaster date selection integration (User Story 1)
     # Support both URL formats:
@@ -3558,6 +3584,9 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
                     debug.log("[TICKETMASTER] Date selection completed")
                 else:
                     debug.log("[TICKETMASTER] Date selection failed or no match")
+    else:
+        # Same page-scoped cooldown reset as the TixCraft date page above.
+        _state.pop("ticketmaster_date_reload_cooldown_until", None)
 
     # choose area
     if '/ticket/area/' in url:
@@ -3621,6 +3650,9 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
         _state["fail_promo_list"] = []
         _state["area_retry_count"] = 0
         _state["ticketmaster_phase"] = "area_select"
+        # Same page-scoped cooldown reset as the date pages above.
+        _state.pop("area_reload_cooldown_until", None)
+        _state.pop("ticketmaster_area_reload_cooldown_until", None)
 
     # T020: Ticketmaster captcha integration (User Story 4)
     # https://ticketmaster.sg/ticket/check-captcha/23_blackpink/954/5/75

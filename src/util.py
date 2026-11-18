@@ -1322,6 +1322,38 @@ def get_reload_interval(config_dict, default=0):
     return max(interval, min(upper, round(random.uniform(interval, upper), 2)))
 
 
+def advance_reload_cooldown(now, cooldown_until, interval):
+    """Step a polling-reload cooldown by one main-loop pass (issue #3).
+
+    Polling reload sites call this instead of sleeping for the reload
+    interval: the caller stores the returned deadline in its module _state
+    and reloads only when this says so, so passes between deadlines stay
+    free to notice and act on newly available tickets.
+
+    Args:
+        now: Current wall-clock time (time.time() at the call site).
+        cooldown_until: Deadline stored by the previous call, or a falsy
+            value when no cooldown is running.
+        interval: Reload interval in seconds (see get_reload_interval).
+
+    Returns:
+        A (should_reload, new_cooldown_until) pair:
+        - No cooldown recorded: start one, do not reload yet.
+        - Cooldown still running: keep waiting, deadline unchanged.
+        - Cooldown expired: reload now and start the next cooldown.
+        - interval <= 0: pacing disabled, reload on every pass and keep
+          no deadline. Call sites that gate on the interval keep their
+          own checks, so this case only fires where they allow it.
+    """
+    if interval <= 0:
+        return True, 0.0
+    if not cooldown_until:
+        return False, now + interval
+    if now < cooldown_until:
+        return False, cooldown_until
+    return True, now + interval
+
+
 def parse_keyword_string_to_array(keyword_string):
     """
     Parse keyword string to array using JSON format.
