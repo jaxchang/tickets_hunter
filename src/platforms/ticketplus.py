@@ -816,18 +816,24 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
 
         if auto_reload_coming_soon_page_enable and is_vue_ready and (not formated_area_list or len(formated_area_list) == 0):
             try:
+                # Non-blocking cooldown (issue #3): pace the refresh with a
+                # deadline instead of sleeping, so the main loop keeps
+                # re-checking the page while waiting. An interval of 0 keeps
+                # this site's historical 1s pacing.
                 reload_interval = util.get_reload_interval(config_dict)
-                if reload_interval > 0:
-                    debug.log(f"[TicketPlus DATE] Waiting {reload_interval}s before auto-reload...")
-                    await asyncio.sleep(reload_interval)
-                else:
-                    await asyncio.sleep(1.0)
-
-                clicked = await _ticketplus_click_refresh_button(tab, debug)
-                if not clicked:
-                    await tab.reload()
-                    debug.log("[TicketPlus DATE] Page reloaded, waiting for content...")
-                    await asyncio.sleep(0.5)
+                effective_interval = reload_interval if reload_interval > 0 else 1.0
+                previous_until = _state.get("date_reload_cooldown_until", 0)
+                should_reload, cooldown_until = util.advance_reload_cooldown(
+                    time.time(), previous_until, effective_interval)
+                _state["date_reload_cooldown_until"] = cooldown_until
+                if should_reload:
+                    clicked = await _ticketplus_click_refresh_button(tab, debug)
+                    if not clicked:
+                        await tab.reload()
+                        debug.log("[TicketPlus DATE] Page reloaded, waiting for content...")
+                        await asyncio.sleep(0.5)
+                elif not previous_until:
+                    debug.log(f"[TicketPlus DATE] Waiting {effective_interval}s before auto-reload...")
             except Exception as exc:
                 debug.log(f"[TicketPlus DATE] Auto reload failed: {exc}")
 
@@ -1804,17 +1810,25 @@ async def nodriver_ticketplus_order(tab, config_dict, ocr, Captcha_Browser):
 
         auto_reload_interval = util.get_reload_interval(config_dict)
         if auto_reload_interval >= 0:
-            if auto_reload_interval > 0:
+            # Non-blocking cooldown (issue #3): the selection check above
+            # already re-ran on this pass, so a ticket count that changed on
+            # the page is acted on at once; only the count refresh itself is
+            # paced by the deadline, without sleeping through the interval.
+            previous_until = _state.get("order_reload_cooldown_until", 0)
+            should_reload, cooldown_until = util.advance_reload_cooldown(
+                time.time(), previous_until, auto_reload_interval)
+            _state["order_reload_cooldown_until"] = cooldown_until
+            if should_reload:
+                debug.log("[AUTO RELOAD] Refreshing ticket count...")
+                try:
+                    clicked = await _ticketplus_click_refresh_button(tab, debug)
+                    if not clicked:
+                        await tab.reload()
+                        debug.log("[AUTO RELOAD] Full page reload (button not found)")
+                except Exception as reload_exc:
+                    debug.log(f"[AUTO RELOAD] Reload failed: {reload_exc}")
+            elif not previous_until:
                 debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before reload...")
-                await asyncio.sleep(auto_reload_interval)
-            debug.log("[AUTO RELOAD] Refreshing ticket count...")
-            try:
-                clicked = await _ticketplus_click_refresh_button(tab, debug)
-                if not clicked:
-                    await tab.reload()
-                    debug.log("[AUTO RELOAD] Full page reload (button not found)")
-            except Exception as reload_exc:
-                debug.log(f"[AUTO RELOAD] Reload failed: {reload_exc}")
 
     debug.log("=== TicketPlus Simplified Booking Ended ===")
 
@@ -2181,6 +2195,14 @@ async def nodriver_ticketplus_main(tab, url, config_dict, ocr, Captcha_Browser):
         _state["elapsed_time"] = None
         _state["signin_form_filled"] = False
         _state["purchase_completed"] = False
+
+    # Reload cooldowns belong to their page type (issue #3): drop them on
+    # any other page, so a stale deadline can neither fire an unpaced
+    # reload nor postpone the first reload on a different page.
+    if '/activity/' not in url.lower():
+        _state.pop("date_reload_cooldown_until", None)
+    if '/order/' not in url.lower():
+        _state.pop("order_reload_cooldown_until", None)
 
     home_url = 'https://ticketplus.com.tw/'
     is_user_signin = False
