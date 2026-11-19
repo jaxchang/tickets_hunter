@@ -69,7 +69,9 @@
 - **platforms/ticketplus.py** - TicketPlus 遠大平台（18 函式）
 - **platforms/funone.py** - FunOne Tickets 平台（18 函式）
 - **platforms/kktix.py** - KKTIX 平台（17 函式）
-- **platforms/tixcraft.py** - TixCraft + Ticketmaster 平台（27 函式）
+- **platforms/tixcraft.py** - TixCraft + Ticketmaster 平台（27 函式；#48 起拆分：共用層與 Ticketmaster 家族移至下列兄弟模組，本檔為 façade）
+- **platforms/tixcraft_shared.py** - TixCraft 家族共用層：`_state`、captcha/OCR 叢集、reload gate、soft-block helpers（#48，ADR 0006）
+- **platforms/ticketmaster.py** - Ticketmaster 家族（#48，ADR 0006）
 - **platforms/ibon.py** - iBon + Tour iBon 平台（25 函式）
 - **platforms/kham.py** - KHAM + ticket.com.tw + UDN + 中職售票（UTK RWD）平台（21 函式；#40 起拆分：共用層與 RWD 家族移至下列兄弟模組，本檔為 façade）
 - **platforms/kham_shared.py** - KHAM 家族共用層：`_state`、captcha 叢集、UTK tenant 查找、送出後對話框處理（#40，ADR 0006）
@@ -113,7 +115,7 @@
 
 ### 🎫 **TixCraft 拓元**
 
-#### 函式清單 (`platforms/tixcraft.py`)
+#### 函式清單 (`platforms/tixcraft.py`；共用層在 `platforms/tixcraft_shared.py`，#48)
 ```
 拓元主流程
 ├── nodriver_tixcraft_main
@@ -169,7 +171,7 @@ KKTIX 主流程
 
 ### 🎵 **TicketMaster**
 
-#### 函式清單 (`platforms/tixcraft.py`)
+#### 函式清單 (`platforms/ticketmaster.py`，#48 自 tixcraft.py 拆出)
 ```
 TicketMaster 功能 (整合在 nodriver_tixcraft_main；ticketmaster.sg / ticketmaster.ph 共用)
 ├── nodriver_ticketmaster_promo

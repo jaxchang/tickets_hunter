@@ -51,6 +51,8 @@ a = Analysis(
         'platforms.funone',
         'platforms.kktix',
         'platforms.tixcraft',
+        'platforms.tixcraft_shared',
+        'platforms.ticketmaster',
         'platforms.ibon',
         'platforms.kham',
         'platforms.kham_shared',
