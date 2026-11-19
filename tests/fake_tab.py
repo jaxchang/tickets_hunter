@@ -29,8 +29,9 @@ See ``test_tixcraft_area_cooldown.py`` for a worked example.
 class FakeElement:
     """A canned page element: children registered per selector."""
 
-    def __init__(self, html=""):
+    def __init__(self, html="", attrs=None):
         self._html = html
+        self.attrs = dict(attrs) if attrs else {}
         self._children = {}
         self._children_all = {}
         self.click_calls = 0
@@ -59,6 +60,11 @@ class FakeElement:
     async def get_html(self):
         return self._html
 
+    async def update(self):
+        # zendriver refreshes the element's attributes; the fake's
+        # canned attrs are already final.
+        pass
+
     async def click(self):
         self.click_calls += 1
 
@@ -68,6 +74,7 @@ class FakeTab:
 
     def __init__(self, url="about:blank"):
         self.url = url
+        self.get_calls = []
         self.reload_calls = 0
         self.sleep_calls = []
         self.evaluate_calls = []
@@ -111,6 +118,10 @@ class FakeTab:
             if match in script:
                 return result
         return []
+
+    async def get(self, url):
+        self.get_calls.append(url)
+        self.url = url
 
     async def reload(self):
         self.reload_calls += 1

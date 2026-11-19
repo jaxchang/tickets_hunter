@@ -23,6 +23,7 @@ except Exception:
 from zendriver import cdp
 
 import util
+import date_selection
 from nodriver_common import (
     PageState,
     check_and_handle_pause,
@@ -1788,12 +1789,9 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
 
     coming_soon_condictions_list = coming_soon_conditions.get(html_lang, coming_soon_conditions['en-US'])
 
-    matched_blocks = None
-    formated_area_list = None
+    rows = []
 
     if area_list and len(area_list) > 0:
-        formated_area_list = []
-        formated_area_list_text = []
         # Batch fetch all row HTML in one CDP round-trip (~9-16x faster than sequential get_html())
         all_row_htmls = None
         try:
@@ -1812,6 +1810,13 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
             except:
                 break
 
+            # Rows for the shared date-selection core (issue #24,
+            # ADR 0003): availability is computed here (buy text
+            # present, sold-out tail check); keyword priority matching
+            # lives in the core. The exclude predicate still runs here
+            # for the coming-soon gate, exactly where it used to run;
+            # the core applies it again when picking candidates.
+            row_is_enabled = False
             if row_text and not util.reset_row_text_if_match_keyword_exclude(config_dict, row_text):
                 # Check coming soon
                 if all(cond in row_text for cond in coming_soon_condictions_list):
@@ -1821,7 +1826,7 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
                         debug.log(f"[DATE SELECT] auto_reload_coming_soon_page=true, will reload and retry")
                         break
                     else:
-                        # Skip this row (don't add to formated_area_list)
+                        # Skip this row (don't add it to rows)
                         continue
 
                 # Check if row has ticket text
@@ -1835,113 +1840,28 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
                             # 移除：售完訊息過度詳細
                             break
 
-                if row_is_enabled:
-                    formated_area_list.append(row)
-                    formated_area_list_text.append(row_text)
-                    # 移除：可用場次訊息過度詳細
+            if row_text:
+                rows.append({
+                    "text": row_text,
+                    "available": row_is_enabled,
+                    "payload": row,
+                })
 
-        # T004-T008: NEW LOGIC - Early return pattern (Feature 003)
-        # Keyword priority matching: first match wins and stops immediately
-        if not date_keyword:
-            matched_blocks = formated_area_list
-            debug.log(f"[DATE KEYWORD] No keyword specified, using all {len(formated_area_list)} dates")
-        else:
-            # NEW: Early return pattern - iterate keywords in order
-            matched_blocks = []
-            target_row_found = False
-            keyword_matched_index = -1
-
-            try:
-                import json
-                import re
-                keyword_array = json.loads("[" + date_keyword + "]")
-
-                # T005: Start checking keywords log
-                debug.log(f"[DATE KEYWORD] Start checking keywords in order: {keyword_array}")
-                debug.log(f"[DATE KEYWORD] Total keyword groups: {len(keyword_array)}")
-                debug.log(f"[DATE KEYWORD] Checking against {len(formated_area_list_text)} available dates...")
-
-                # NEW: Iterate keywords in priority order (early return)
-                for keyword_index, keyword_item_set in enumerate(keyword_array):
-                    debug.log(f"[DATE KEYWORD] Checking keyword #{keyword_index + 1}: {keyword_item_set}")
-
-                    # Check all rows for this keyword
-                    for i, row_text in enumerate(formated_area_list_text):
-                        normalized_row_text = re.sub(r'\s+', ' ', row_text)
-                        is_match = False
-
-                        if isinstance(keyword_item_set, str):
-                            # OR logic: single keyword
-                            normalized_keyword = re.sub(r'\s+', ' ', keyword_item_set)
-                            is_match = normalized_keyword in normalized_row_text
-                        elif isinstance(keyword_item_set, list):
-                            # AND logic: all keywords must match
-                            normalized_keywords = [re.sub(r'\s+', ' ', kw) for kw in keyword_item_set]
-                            match_results = [kw in normalized_row_text for kw in normalized_keywords]
-                            is_match = all(match_results)
-
-                        if is_match:
-                            # T006: Keyword matched log - IMMEDIATELY select and stop
-                            matched_blocks = [formated_area_list[i]]
-                            target_row_found = True
-                            keyword_matched_index = keyword_index
-                            debug.log(f"[DATE KEYWORD] Keyword #{keyword_index + 1} matched: '{keyword_item_set}'")
-                            debug.log(f"[DATE SELECT] Selected date: {row_text[:80]} (keyword match)")
-                            break
-
-                    if target_row_found:
-                        # EARLY RETURN: Stop checking further keywords
-                        break
-
-                # T007: All keywords failed log
-                if not target_row_found:
-                    debug.log(f"[DATE KEYWORD] All keywords failed to match")
-
-            except Exception as e:
-                debug.log(f"[DATE KEYWORD] Parsing error: {e}")
-                # On error, use mode selection
-                matched_blocks = []
-
-    # T018-T020: NEW - Conditional fallback based on date_auto_fallback switch
-    if matched_blocks is not None and len(matched_blocks) == 0 and date_keyword and formated_area_list is not None and len(formated_area_list) > 0:
-        if date_auto_fallback:
-            # T018: Fallback enabled - use auto_select_mode
-            debug.log(f"[DATE FALLBACK] date_auto_fallback=true, triggering auto fallback")
-            debug.log(f"[DATE FALLBACK] Selecting available date based on date_select_order='{auto_select_mode}'")
-            matched_blocks = formated_area_list
-        else:
-            # T019: Fallback disabled - strict mode (no selection, but still reload)
-            debug.log(f"[DATE FALLBACK] date_auto_fallback=false, fallback is disabled")
-            debug.log(f"[DATE SELECT] No date selected, will reload page and retry")
-            # Don't return - let reload logic execute below
-            # matched_blocks remains None (no selection will be made)
-
-    # T020: Handle case when formated_area_list is empty or None (all options excluded or sold out)
-    if formated_area_list is None or len(formated_area_list) == 0:
-        debug.log(f"[DATE FALLBACK] No available options after exclusion")
-        debug.log(f"[DATE SELECT] Will reload page and retry")
-        # Don't return - let reload logic execute at function end
-        is_date_clicked = False
-        target_area = None  # Skip selection when no options available
-    elif matched_blocks is None or len(matched_blocks) == 0:
-        # matched_blocks is None when fallback=false and keyword didn't match
-        target_area = None
-        is_date_clicked = False
-    else:
-        target_area = util.get_target_item_from_matched_list(matched_blocks, auto_select_mode)
+    config_view = {
+        "keyword": date_keyword,
+        "mode": auto_select_mode,
+        "keyword_exclude": config_dict.get("keyword_exclude"),
+        "fallback": date_auto_fallback,
+    }
+    chosen_index = date_selection.select_date(rows, config_view)
+    target_area = rows[chosen_index]["payload"] if chosen_index is not None else None
 
     if debug.enabled:
-        if target_area and matched_blocks:
-            # Find which index was selected
-            try:
-                target_index = matched_blocks.index(target_area) if target_area in matched_blocks else -1
-                debug.log(f"[DATE SELECT] Auto-select mode: {auto_select_mode}")
-                debug.log(f"[DATE SELECT] Selected target: #{target_index + 1}/{len(matched_blocks)}")
-            except:
-                debug.log(f"[DATE SELECT] Auto-select mode: {auto_select_mode}")
-                debug.log(f"[DATE SELECT] Target selected from {len(matched_blocks)} matched dates")
-        elif not matched_blocks or len(matched_blocks) == 0:
-            debug.log(f"[DATE SELECT] No target selected (matched_blocks is empty)")
+        if target_area:
+            debug.log(f"[DATE SELECT] Auto-select mode: {auto_select_mode}")
+            debug.log(f"[DATE SELECT] Target selected from {len(rows)} dates")
+        else:
+            debug.log(f"[DATE SELECT] No target selected")
 
     is_date_clicked = False
 
