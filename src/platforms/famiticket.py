@@ -8,6 +8,7 @@ import random
 
 import util
 from nodriver_common import (
+    PageState,
     CONST_FROM_TOP_TO_BOTTOM,
     CONST_MAXBOT_ANSWER_ONLINE_FILE,
 )
@@ -25,7 +26,23 @@ __all__ = [
     "nodriver_famiticket_main",
 ]
 
-_state = {}
+# Module-level state. Keys declare their lifecycle here, in one place
+# (issue #14, ADR 0002): page keys would be cleared by PageState when
+# the main function moves to a different page; every current key is
+# session state for the reason stated.
+# Page ids for PageState: the main function classifies the current page
+# into one of these per pass. Declarations and set_page share the names
+# so a typo cannot silently disable a key's clearing.
+_PAGE_PAYMENT = "payment"
+_PAGE_SIGNIN = "signin"
+_PAGE_ACTIVITY_INFO = "activity_info"
+_PAGE_SALES_INDEX = "sales_index"
+_PAGE_HOME = "home"
+
+_state = PageState("famiticket")
+_state.declare_session("fail_list", "failure memory for the ticket flow")
+_state.declare_session("last_activity", "last seen activity tracker")
+_state.declare_session("payment_logged", "payment page log-once flag")
 
 
 async def nodriver_fami_login(tab, config_dict):
@@ -726,6 +743,22 @@ async def nodriver_famiticket_main(tab, url, config_dict):
     debug = util.create_debug_logger(config_dict)
 
     debug.log(f"[FAMITICKET MAIN] Processing URL: {url[:80]}...")
+
+    # Page state lifecycle (issue #14): classify the page once per pass,
+    # mirroring the URL routing branches below.
+    if '/Payment/' in url:
+        _page_id = _PAGE_PAYMENT
+    elif '/Home/User/SignIn' in url and '/SignInCheck' not in url:
+        _page_id = _PAGE_SIGNIN
+    elif '/Home/Activity/Info/' in url:
+        _page_id = _PAGE_ACTIVITY_INFO
+    elif '/Sales/Home/Index/' in url:
+        _page_id = _PAGE_SALES_INDEX
+    elif url.endswith('/Home/') or url.endswith('/Home'):
+        _page_id = _PAGE_HOME
+    else:
+        _page_id = None
+    _state.set_page(_page_id)
 
     result = False
 

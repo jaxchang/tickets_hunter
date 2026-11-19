@@ -11,7 +11,7 @@ from urllib.parse import quote, unquote
 from zendriver import cdp
 
 import util
-from nodriver_common import check_and_handle_pause, play_sound_while_ordering, sleep_with_pause_check
+from nodriver_common import PageState, check_and_handle_pause, play_sound_while_ordering, sleep_with_pause_check
 from nodriver_common import CONST_FROM_TOP_TO_BOTTOM
 
 # =============================================================================
@@ -39,8 +39,19 @@ __all__ = [
     "nodriver_fansigo_main",
 ]
 
-# Module-level state (replaces global fansigo_dict)
-_state = {}
+# Module-level state (replaces global fansigo_dict). Keys declare their lifecycle here, in one place
+# (issue #14, ADR 0002): page keys would be cleared by PageState when
+# the main function moves to a different page; every current key is
+# session state for the reason stated. Page ids are the values of
+# get_fansigo_page_type() ("unknown" maps to None in set_page).
+_state = PageState("fansigo")
+_state.declare_session("is_cookie_injected", "cookie injection flag for the login flow")
+_state.declare_session("is_signin_submitted", "sign-in submission flag; reset when the login page is revisited")
+_state.declare_session("played_sound_ticket", "sound plays once per purchase flow")
+_state.declare_session("last_page_type", "page-type tracker for change logging")
+_state.declare_session("qty_set_url", "URL whose ticket quantity was already set, keyed by URL by design")
+_state.declare_session("countdown_logged", "countdown presence log tracker")
+_state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
 
 # FANSI GO URL patterns
 FANSIGO_URL_PATTERNS = {
@@ -949,6 +960,10 @@ async def nodriver_fansigo_main(tab, url, config_dict):
 
     # Get page type
     page_type = get_fansigo_page_type(url)
+
+    # Page state lifecycle (issue #14): feed the classification the
+    # dispatch already computed into PageState once per pass.
+    _state.set_page(None if page_type == "unknown" else page_type)
 
     # Log page type change
     if page_type != _state.get("last_page_type"):

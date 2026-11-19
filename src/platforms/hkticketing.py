@@ -16,6 +16,7 @@ from zendriver.core.keys import SpecialKeys
 
 import util
 from nodriver_common import (
+    PageState,
     nodriver_check_modal_dialog_popup,
     play_sound_while_ordering,
     send_discord_notification,
@@ -63,8 +64,27 @@ __all__ = [
     "nodriver_hkticketing_main",
 ]
 
-# Module-level state (replaces global hkticketing_dict)
-_state = {}
+# Module-level state (replaces global hkticketing_dict). Keys declare their lifecycle here, in one place
+# (issue #14, ADR 0002): page keys would be cleared by PageState when
+# the main function moves to a different page; every current key is
+# session state for the reason stated.
+# Page ids for PageState: the main function classifies the current page
+# into one of these per pass. Declarations and set_page share the names
+# so a typo cannot silently disable a key's clearing.
+_PAGE_LOGIN = "login"
+_PAGE_EVENT = "event"
+_PAGE_TICKET = "ticket"
+_PAGE_CONFIRM = "confirm"
+_PAGE_CHECKOUT = "checkout"
+_PAGE_HOME = "home"
+_PAGE_CLASSIC = "classic"
+
+_state = PageState("hkticketing")
+_state.declare_session("is_date_submiting", "date submission in-progress flag")
+_state.declare_session("fail_list", "failure memory for the ticket flow")
+_state.declare_session("played_sound_ticket", "sound plays once per purchase flow")
+_state.declare_session("played_sound_order", "sound plays once per purchase flow")
+_state.declare_session("shown_checkout_message", "checkout message shows once per run")
 
 
 # ====================================================================================
@@ -2515,6 +2535,29 @@ async def nodriver_hkticketing_main(tab, url, config_dict):
     #   - Checkout page: hkt.hkticketing.com/hant/#/generateSeat/{orderId} (success!)
     # ==========================================================================
     is_type02_site = 'hkt.hkticketing.com' in url
+
+    # Page state lifecycle (issue #14): classify the page once per pass,
+    # mirroring the dispatch branches below (Type 02 SPA hash routes and
+    # the classic site's login pages).
+    if is_type02_site and '#/login' in url:
+        _page_id = _PAGE_LOGIN
+    elif is_type02_site and 'selectTicket' in url and 'activityId=' in url:
+        _page_id = _PAGE_TICKET
+    elif is_type02_site and '#/allEvents/detail' in url:
+        _page_id = _PAGE_EVENT
+    elif is_type02_site and '#/confirmOrder' in url:
+        _page_id = _PAGE_CONFIRM
+    elif is_type02_site and '#/generateSeat' in url:
+        _page_id = _PAGE_CHECKOUT
+    elif is_type02_site and '#/home' in url:
+        _page_id = _PAGE_HOME
+    elif is_type02_site:
+        _page_id = None
+    elif 'hkticketing.com/Secure/ShowLogin.aspx' in url or 'hkticketing.com/Membership/Login.aspx' in url:
+        _page_id = _PAGE_LOGIN
+    else:
+        _page_id = _PAGE_CLASSIC
+    _state.set_page(_page_id)
 
     # Check for traffic overload page and auto-refresh (applies to all Type02 pages)
     if is_type02_site:
