@@ -2501,7 +2501,11 @@ def check_kktix_got_ticket(url, config_dict):
 
     return is_kktix_got_ticket
 
-async def nodriver_kktix_main(tab, url, config_dict):
+async def nodriver_kktix_main(ctx):
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+
     debug = util.create_debug_logger(config_dict)
 
     if not _state:
@@ -2654,7 +2658,7 @@ async def nodriver_kktix_main(tab, url, config_dict):
                 except Exception as reload_exc:
                     debug.log(f"[KKTIX] Alert-triggered reload failed: {reload_exc}")
                 # Reload is a recovery path, not a terminal state.
-                return False
+                return None
 
             # Check and dismiss guest modal (立刻成為 KKTIX 會員) before processing
             # This modal appears when user is not logged in
@@ -2671,7 +2675,7 @@ async def nodriver_kktix_main(tab, url, config_dict):
                     await tab.reload()
                 except Exception as reload_exc:
                     debug.log(f"[KKTIX] Post-modal reload failed: {reload_exc}")
-                return False
+                return None
 
             is_dom_ready = False
             try:
@@ -2697,7 +2701,7 @@ async def nodriver_kktix_main(tab, url, config_dict):
                 # Queue may end with a guest session; tickets render without
                 # input fields then, so go log in before selecting anything
                 if await nodriver_kktix_redirect_to_signin_if_guest(tab, url, config_dict):
-                    return False
+                    return None
 
                 # Stage 9: terms. KKTIX removed this checkbox in 2026-10; only
                 # tick it where it still shows, since the helper's retries cost
@@ -2847,7 +2851,10 @@ async def nodriver_kktix_main(tab, url, config_dict):
             debug.log("[KKTIX] Ticket purchase completed")
             _state["printed_completed"] = True
 
-    return is_quit_bot
+    # Platform interface (issue #38): the former is_quit_bot return was
+    # neutralized by the dispatcher on every pass, so the main now
+    # returns None (keep the current tab) like every other entry point.
+    return None
 
 async def nodriver_kktix_booking_main(tab, config_dict):
     """KKTIX #/booking seat selection page automation.
@@ -3077,15 +3084,7 @@ async def nodriver_kktix_order_member_code(tab, config_dict):
         return False
 
 
-# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
-# keeps its pre-interface signature until its migration batch. The
-# dispatcher used to neutralize its is_quit_bot return on every pass,
-# so the adapter discards it.
-async def _legacy_entry(ctx):
-    await nodriver_kktix_main(ctx.tab, ctx.url, ctx.config_dict)
-    return None
-
-
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 PLATFORM_ENTRIES = [
-    PlatformEntry("kktix", _legacy_entry, patterns=("kktix.c",)),
+    PlatformEntry("kktix", nodriver_kktix_main, patterns=("kktix.c",)),
 ]

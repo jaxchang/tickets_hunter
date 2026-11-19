@@ -732,10 +732,14 @@ async def nodriver_fami_home_auto_select(tab, config_dict, last_activity_url):
 
     return False
 
-async def nodriver_famiticket_main(tab, url, config_dict):
+async def nodriver_famiticket_main(ctx):
     """
     FamiTicket main function - URL router
     """
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+
     if not _state:
         _state.update({
             "fail_list": [],
@@ -770,7 +774,7 @@ async def nodriver_famiticket_main(tab, url, config_dict):
             if not _state.get("payment_logged", False):
                 print("[FAMITICKET MAIN] Payment page detected - waiting for user to complete payment")
                 _state["payment_logged"] = True
-            return True
+            return None
 
         if '/Home/User/SignIn' in url and '/SignInCheck' not in url:
             fami_account = config_dict["accounts"].get("fami_account", "")
@@ -807,16 +811,9 @@ async def nodriver_famiticket_main(tab, url, config_dict):
     except Exception as exc:
         debug.log(f"[FAMITICKET MAIN] Error: {str(exc)}")
 
-    return result
-
-# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
-# keeps its pre-interface signature until its migration batch; its bool
-# return was discarded by the dispatcher, and the adapter discards it.
-async def _legacy_entry(ctx):
-    await nodriver_famiticket_main(ctx.tab, ctx.url, ctx.config_dict)
     return None
 
-
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 PLATFORM_ENTRIES = [
-    PlatformEntry("famiticket", _legacy_entry, patterns=("famiticket.com",)),
+    PlatformEntry("famiticket", nodriver_famiticket_main, patterns=("famiticket.com",)),
 ]

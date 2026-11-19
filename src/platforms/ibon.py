@@ -4061,10 +4061,16 @@ def ibon_build_skip_url(area_dict):
     return util.IBON_ORDER_BASE_URL + path
 
 
-async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
+async def nodriver_ibon_main(ctx):
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+    ocr = ctx.ocr
+    Captcha_Browser = ctx.captcha_browser
+
     # 函數開始時檢查暫停
     if await check_and_handle_pause(config_dict):
-        return False
+        return None
     _ensure_state()
 
     # Check if kicked to login page (Cookie/Session expired)
@@ -4116,7 +4122,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
             import time as _time
             _state["queue_it_enter_time"] = _time.time()
             debug.log("[IBON] Queue-IT entered, waiting...")
-        return False
+        return None
     else:
         if _state.get("queue_it_enter_time") is not None:
             import time as _time
@@ -4173,7 +4179,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
         except Exception as e:
             debug.log(f"[IBON LOGIN] Navigation to ibon base failed: {e}")
 
-        return False  # Don't quit bot, continue monitoring
+        return None  # Don't quit bot, continue monitoring
 
     home_url_list = ['https://ticket.ibon.com.tw/'
     ,'https://ticket.ibon.com.tw/index/entertainment'
@@ -4224,7 +4230,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                 except Exception as redirect_exc:
                     debug.log(f"[IBON] Redirect failed: {redirect_exc}")
 
-            return False
+            return None
 
     # tour.ibon.com.tw URL routing
     # https://tour.ibon.com.tw/event/{eventId}
@@ -4400,7 +4406,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                                     "area_name": livemap_selected['area_name'],
                                 }
                                 await tab.get(skip_url)
-                                return False
+                                return None
                             else:
                                 livemap_debug.log("[IBON LIVEMAP] No matching area after filtering, falling back to DOM flow")
                         else:
@@ -4500,7 +4506,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                             debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before next check...")
                             await asyncio.sleep(auto_reload_interval)
 
-                        return False  # Return to main loop to continue monitoring
+                        return None  # Return to main loop to continue monitoring
 
                     # Livemap fast-path area verified: has tickets, clear the attempt tracker
                     _state["livemap_last_attempt"] = None
@@ -4568,7 +4574,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                                 debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before next check...")
                                 await asyncio.sleep(auto_reload_interval)
 
-                            return False  # Return to main loop to continue monitoring
+                            return None  # Return to main loop to continue monitoring
 
                     # Step 4: Submit purchase
                     if is_ticket_number_assigned and is_captcha_sent:
@@ -4617,7 +4623,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                             debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before next check...")
                             await asyncio.sleep(auto_reload_interval)
 
-                        return False  # Return to main loop to continue monitoring
+                        return None  # Return to main loop to continue monitoring
 
                     # Livemap fast-path area verified: has tickets, clear the attempt tracker
                     _state["livemap_last_attempt"] = None
@@ -4683,7 +4689,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                                 debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before next check...")
                                 await asyncio.sleep(auto_reload_interval)
 
-                            return False  # Return to main loop to continue monitoring
+                            return None  # Return to main loop to continue monitoring
 
                     # Step 4: Submit purchase
                     if is_ticket_number_assigned and is_captcha_sent:
@@ -5090,15 +5096,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
     return tab
 
 
-# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
-# keeps its pre-interface signature until its migration batch; its tab
-# return was discarded by the dispatcher (adopting it is that batch's
-# flagged change), so the adapter discards it too.
-async def _legacy_entry(ctx):
-    await nodriver_ibon_main(ctx.tab, ctx.url, ctx.config_dict, ctx.ocr, ctx.captcha_browser)
-    return None
-
-
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 PLATFORM_ENTRIES = [
-    PlatformEntry("ibon", _legacy_entry, patterns=("ibon.com",)),
+    PlatformEntry("ibon", nodriver_ibon_main, patterns=("ibon.com",)),
 ]

@@ -36,15 +36,16 @@ async def nodriver_facebook_login(tab, facebook_account, facebook_password):
             pass
 
 
-async def nodriver_facebook_main(tab, config_dict):
+async def nodriver_facebook_main(ctx):
+    tab = ctx.tab
+    config_dict = ctx.config_dict
+
     facebook_account = config_dict["accounts"]["facebook_account"].strip()
     facebook_password = config_dict["accounts"]["facebook_password"].strip()
     if len(facebook_account) > 4:
         await nodriver_facebook_login(tab, facebook_account, facebook_password)
 
-# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
-# keeps its pre-interface signature until its migration batch; it
-# returns None, and the adapter does the same.
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 FACEBOOK_LOGIN_URL = 'https://www.facebook.com/login.php?'
 
 
@@ -52,11 +53,6 @@ def _is_facebook_login_url(url):
     return url[:len(FACEBOOK_LOGIN_URL)] == FACEBOOK_LOGIN_URL
 
 
-async def _legacy_entry(ctx):
-    await nodriver_facebook_main(ctx.tab, ctx.config_dict)
-    return None
-
-
 PLATFORM_ENTRIES = [
-    PlatformEntry("facebook", _legacy_entry, match_fn=_is_facebook_login_url),
+    PlatformEntry("facebook", nodriver_facebook_main, match_fn=_is_facebook_login_url),
 ]
