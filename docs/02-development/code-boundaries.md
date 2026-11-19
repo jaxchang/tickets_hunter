@@ -14,7 +14,7 @@
 
 - **`nodriver_tixcraft.py`** — 主迴圈與路由：URL 分派、瀏覽器啟動、設定熱重載。平台邏輯已全數拆至 `platforms/`。禁止：通用 DOM 工具（屬 `nodriver_common.py`）、設定 CRUD（屬 `settings.py`）。
 - **`nodriver_common.py`** — 共用瀏覽器基礎設施：DOM 操作、暫停機制、Cloudflare、瀏覽器初始化、OCR 工廠、通知。禁止：平台業務邏輯、import `platforms/*` 或 `nodriver_tixcraft`。
-- **`platforms/*.py`** — 各平台 12 階段流程，一平台一檔（家族平台同檔，如 tixcraft + ticketmaster）。狀態用模組層級 `_state = {}`；平台常數定義在各自模組。禁止：跨平台 import、import `nodriver_tixcraft`。
+- **`platforms/*.py`** — 各平台 12 階段流程，一平台一檔（家族平台同檔，如 tixcraft + ticketmaster）。狀態用模組層級 `_state`（已遷移模組以 `PageState` 宣告鍵的生命週期，見 ADR 0002）；平台常數定義在各自模組。禁止：跨平台 import、import `nodriver_tixcraft`。
 - **`util.py`** — 純跨平台工具：文字比對、關鍵字解析、字串正規化、檔案 I/O、DebugLogger、CAPTCHA 數學猜測。禁止：平台選擇器／URL、業務邏輯、import `settings` 或 `nodriver_tixcraft`。此檔為所有平台共用，修改前務必評估跨平台影響。
 - **`settings.py`** — 設定 CRUD 與 Tornado Web Server。禁止：搶票邏輯、import `nodriver_tixcraft`。僅允許 `import util`。
 
@@ -70,7 +70,7 @@ util               -->  (無專案內部匯入)
 
 ## 5. 平台模組狀態管理
 
-各平台使用模組層級 `_state = {}` dict 管理跨迴圈狀態：
+各平台使用模組層級 `_state` 管理跨迴圈狀態。未遷移的模組使用純 dict：
 
 ```python
 # platforms/xxx.py
@@ -82,6 +82,10 @@ async def nodriver_xxx_main(tab, url, config_dict):
             "key": default_value,
         })
 ```
+
+已遷移的模組（tixcraft、TicketPlus）改用 `nodriver_common.PageState`（dict 相容）：
+在模組頂部以 `declare_page` / `declare_session` 集中宣告每個鍵的生命週期，
+主函式每輪以 `set_page(page_id)` 宣告目前頁面，換頁時頁面鍵自動清除（見 ADR 0002）。
 
 禁止模式：
 
@@ -155,7 +159,7 @@ async def nodriver_xxx_main(tab, url, config_dict):
 
 ## 10. 新增平台模組流程
 
-1. 建立 `src/platforms/{platform}.py`，函式命名 `nodriver_{platform}_{action}`，狀態用模組層級 `_state = {}`
+1. 建立 `src/platforms/{platform}.py`，函式命名 `nodriver_{platform}_{action}`，狀態用模組層級 `_state`（比照既有模組慣例；新模組可直接採 `PageState` 宣告生命週期）
 2. 主檔新增 `from platforms.{platform} import *` 與 URL 路由分派
 3. `build_scripts/nodriver_tixcraft.spec` 的 `hiddenimports` 新增 `'platforms.{platform}'`
 4. 驗證（`py_compile`、import 鏈、煙霧測試）後更新 `docs/02-development/structure.md` 函式索引

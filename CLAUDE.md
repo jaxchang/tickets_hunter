@@ -160,9 +160,12 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common  ->  util / settings
 - **主迴圈約每 50 毫秒跑一輪，同一個動作會被反覆呼叫。** 送出、填值這類有副作用的動作必須有
   防重入狀態（沿用各平台模組既有的 `_state` dict，不要新增模組層級全域變數），失敗也要有重試上限，
   否則錯誤的值會被每秒送出數十次。
-- **在 `_state` 新增快取或截止時間時，同一個改動必須寫明它的清除時機。** 寫明成功時清、離開
-  該頁面時清，或明確註記跨頁保留的理由；只寫入不清的狀態會在換頁後以過期或未過期的舊值影響
-  新頁面（#3 的刷新冷卻曾因此跨頁殘留，靠 code review 才發現）。code review 時逐一核對。
+- **在 `_state` 新增快取或截止時間時，同一個改動必須寫明它的清除時機。** 已遷移的模組
+  （tixcraft、TicketPlus）用 `nodriver_common.PageState` 在模組頂部集中宣告：屬於某頁的鍵以
+  `declare_page` 宣告、由主函式的 `set_page` 在換頁時自動清除，跨頁存活的鍵以 `declare_session`
+  宣告並附理由（機制與取捨見 ADR 0002）；尚未遷移的模組仍須在改動中寫明成功時清、離開該頁面
+  時清，或跨頁保留的理由。只寫入不清的狀態會在換頁後以過期或未過期的舊值影響新頁面
+  （#3 的刷新冷卻曾因此跨頁殘留，靠 code review 才發現）。code review 時逐一核對。
 - **改動任何頁面刷新行為前，先查 [刷新站點地圖](docs/03-mechanisms/11-reload-sites.md)** 分清
   輪詢刷新與復原刷新（定義見 `GLOSSARY.md`）：兩者的定速與清除規則不同，不要一起改。
 - **等待迴圈用 `sleep_with_pause_check` / `asyncio_sleep_with_pause_check`**（`nodriver_common.py`），
@@ -256,10 +259,11 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common  ->  util / settings
 
 ## 測試
 
-- 測試套件由維護者另行維護，公開庫不含 `tests/`。
+- 本 fork 在 repo 內維護 `tests/`，CI 對 PR 與 main 執行（見「建置與測試指令」）。
 - 修改過的檔案必須通過 `python -m py_compile`。
 - 平台自動化邏輯高度依賴即時 DOM，難以事先寫測試；
-  TDD 僅適用於 `util.py` / `settings.py` 的純函式。
+  TDD 適用於純函式（`util.py` / `settings.py`）與介面明確的共用模組
+  （如 `nodriver_common.PageState`），平台邏輯仍以實機驗證為準。
 
 ---
 

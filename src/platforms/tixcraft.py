@@ -24,6 +24,7 @@ from zendriver import cdp
 
 import util
 from nodriver_common import (
+    PageState,
     check_and_handle_pause,
     sleep_with_pause_check,
     convert_remote_object,
@@ -74,8 +75,48 @@ __all__ = [
     "nodriver_ticketmaster_check_ip_block",
 ]
 
-# Module-level state (replaces global tixcraft_dict)
-_state = {}
+# Module-level state (replaces global tixcraft_dict). Keys declare their
+# lifecycle here, in one place (issue #7, ADR 0002): page keys are cleared
+# by PageState when the main function moves to a different page; session
+# keys survive page changes for the reason stated.
+# Page ids for PageState: the main function classifies the current page
+# into one of these per pass. Declarations and set_page share the names
+# so a typo cannot silently disable a key's clearing.
+_PAGE_DATE = "tixcraft_date"
+_PAGE_AREA = "tixcraft_area"
+_PAGE_TICKETMASTER_DATE = "ticketmaster_date"
+_PAGE_TICKETMASTER_AREA = "ticketmaster_area"
+_PAGE_TICKET = "ticket"
+
+_state = PageState("tixcraft")
+_state.declare_page("date_reload_cooldown_until", _PAGE_DATE)
+_state.declare_page("area_reload_cooldown_until", _PAGE_AREA)
+_state.declare_page("ticketmaster_date_reload_cooldown_until", _PAGE_TICKETMASTER_DATE)
+_state.declare_page("ticketmaster_area_reload_cooldown_until", _PAGE_TICKETMASTER_AREA)
+_state.declare_session("fail_list", "area failure memory; reset by the area-page exit branch")
+_state.declare_session("fail_promo_list", "promo failure memory; reset by the area-page exit branch")
+_state.declare_session("start_time", "purchase-flow timing for the whole run")
+_state.declare_session("done_time", "purchase-flow timing for the whole run")
+_state.declare_session("elapsed_time", "purchase-flow timing for the whole run")
+_state.declare_session("is_popup_checkout", "checkout popup flag for the order flow")
+_state.declare_session("area_retry_count", "reset by the area-page exit branch")
+_state.declare_session("played_sound_ticket", "sound plays once per purchase flow")
+_state.declare_session("played_sound_order", "sound plays once per purchase flow")
+_state.declare_session("alert_handler_registered", "alert handler registers once per process")
+_state.declare_session("captcha_alert_detected", "captcha retry guard shared by alert handler and ticket page")
+_state.declare_session("captcha_submit_until", "captcha retry guard shared by alert handler and ticket page")
+_state.declare_session("ocr_completed_url", "URL-keyed OCR dedup across pages")
+_state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
+_state.declare_session("sold_out_cooldown_until", "wall-clock cooldown, cross-page by design (issue #188)")
+_state.declare_session("printed_completed", "completion banner prints once per run")
+_state.declare_session("ticketmaster_phase", "phase machine; reset by the area-page exit branch")
+_state.declare_session("ticketmaster_captcha_processed_url", "URL-keyed captcha dedup across pages")
+_state.declare_session("ip_block_until", "IP block window applies on every page")
+_state.declare_session("queue_it_enter_time", "queue wait timing for the whole run")
+_state.declare_session("cookie_accepted", "cookie banner is accepted once per run")
+_state.declare_session("html_lang", "page language cached for the whole run")
+_state.declare_session("reload_disabled_logged_tags", "log-once tags for the whole run")
+_state.declare_session_prefix("ticket_assigned_", "per-ticket assignment markers keyed by URL and ticket count; kept for the run so a set count is not re-entered")
 
 # Seconds the Ticketmaster check-captcha handler waits for the captcha input:
 # the URL flips before the form renders, and nodriver_tixcraft_auto_ocr reads a
@@ -3488,6 +3529,33 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
             "queue_it_enter_time": None,
         })
 
+    # T010 page classification, computed once per pass and shared by the
+    # page-state lifecycle below and the Ticketmaster date selection
+    # further down. Both URL formats are supported:
+    # - /artist/{artist_id} (artist listing page)
+    # - /activity/game/{event_id} (event date listing page from /activity/detail redirect)
+    is_ticketmaster_date_page = (
+        'ticketmaster' in url and
+        (('/artist/' in url and len(url.split('/')) == 6) or
+         ('/activity/game/' in url) or
+         ('/activity/detail/' in url))
+    )
+
+    # Page state lifecycle (issue #7): classify the page once per pass;
+    # PageState clears the page keys owned by any other page, so a stale
+    # value can neither fire nor postpone work on a different page.
+    if is_ticketmaster_date_page:
+        _page_id = _PAGE_TICKETMASTER_DATE
+    elif "/activity/game/" in url:
+        _page_id = _PAGE_DATE
+    elif '/ticket/area/' in url:
+        _page_id = _PAGE_TICKETMASTER_AREA if 'ticketmaster' in url else _PAGE_AREA
+    elif '/ticket/' in url:
+        _page_id = _PAGE_TICKET
+    else:
+        _page_id = None
+    _state.set_page(_page_id)
+
     # Register global alert handler (remains active throughout session)
     # Only register once to prevent infinite loop
     if not _state.get("alert_handler_registered", False):
@@ -3555,23 +3623,10 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
         if config_dict["date_auto_select"]["enable"]:
             domain_name = url.split('/')[2]
             is_date_selected = await nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
-    else:
-        # The date reload cooldown belongs to the date page (issue #3): drop
-        # it anywhere else, so a stale deadline can neither fire an unpaced
-        # reload nor postpone the first reload on a different page.
-        _state.pop("date_reload_cooldown_until", None)
 
     # T010: Ticketmaster date selection integration (User Story 1)
-    # Support both URL formats:
-    # - /artist/{artist_id} (artist listing page)
-    # - /activity/game/{event_id} (event date listing page from /activity/detail redirect)
-    is_ticketmaster_date_page = (
-        'ticketmaster' in url and
-        (('/artist/' in url and len(url.split('/'))==6) or
-         ('/activity/game/' in url) or
-         ('/activity/detail/' in url))
-    )
-
+    # is_ticketmaster_date_page is computed once per pass, next to the
+    # page-state classification near the top of this function.
     if is_ticketmaster_date_page:
         _state["start_time"] = time.time()
         if config_dict["date_auto_select"]["enable"]:
@@ -3584,9 +3639,6 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
                     debug.log("[TICKETMASTER] Date selection completed")
                 else:
                     debug.log("[TICKETMASTER] Date selection failed or no match")
-    else:
-        # Same page-scoped cooldown reset as the TixCraft date page above.
-        _state.pop("ticketmaster_date_reload_cooldown_until", None)
 
     # choose area
     if '/ticket/area/' in url:
@@ -3650,9 +3702,6 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
         _state["fail_promo_list"] = []
         _state["area_retry_count"] = 0
         _state["ticketmaster_phase"] = "area_select"
-        # Same page-scoped cooldown reset as the date pages above.
-        _state.pop("area_reload_cooldown_until", None)
-        _state.pop("ticketmaster_area_reload_cooldown_until", None)
 
     # T020: Ticketmaster captcha integration (User Story 4)
     # https://ticketmaster.sg/ticket/check-captcha/23_blackpink/954/5/75

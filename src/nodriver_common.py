@@ -79,6 +79,105 @@ CLOUDFLARE_TOKEN_POLL = 0.25
 CONST_TURNSTILE_MIN_TOKEN_LENGTH = 20
 
 
+# ===== Page-scoped platform state =====
+
+class PageState(dict):
+    """Per-platform state whose keys declare their own lifecycle (issue #7).
+
+    Platform modules keep cross-pass state in a module-level dict, and a
+    key's lifetime used to live only in convention: written in one handler,
+    cleared (or not) in another, which is how issue #3's reload cooldown
+    deadlines leaked across pages. PageState keeps the dict interface --
+    item access, .get(), .setdefault(), .pop(), .update() all behave as
+    before -- and adds the missing declaration:
+
+    - declare_page(key, page): the key is page state (see GLOSSARY) owned
+      by one page_id; set_page() clears it as soon as the current page is
+      any other page.
+    - declare_session(key, reason): the key survives page changes; the
+      reason is recorded so a reader can tell the survival is deliberate.
+      Dynamically named key families use declare_session_prefix().
+    - Undeclared keys behave as session state for compatibility and are
+      remembered in undeclared_keys() so inventories can find them.
+      Writes through item assignment, .update() and .setdefault() are
+      all tracked.
+
+    The platform's main function calls set_page(page_id) once per pass
+    with its own URL classification; page_id None means "no classified
+    page" and clears every page key. Re-entering the same page (including
+    a reload of it) clears nothing.
+    """
+
+    def __init__(self, name=""):
+        super().__init__()
+        self.name = name
+        self._page_of_key = {}
+        self._session_reasons = {}
+        self._session_prefixes = {}
+        self._undeclared = set()
+        self._current_page = None
+
+    def declare_page(self, key, page):
+        """Declare key as page state owned by the given page_id."""
+        self._page_of_key[key] = page
+        self._session_reasons.pop(key, None)
+
+    def declare_session(self, key, reason=""):
+        """Declare key as surviving page changes, with the reason why."""
+        self._session_reasons[key] = reason
+        self._page_of_key.pop(key, None)
+
+    def declare_session_prefix(self, prefix, reason=""):
+        """Declare a dynamically named key family as session state."""
+        self._session_prefixes[prefix] = reason
+
+    @property
+    def current_page(self):
+        return self._current_page
+
+    def set_page(self, page_id):
+        """Move to page_id, clearing page keys owned by any other page.
+
+        Returns the list of keys cleared by this call.
+        """
+        if page_id == self._current_page:
+            return []
+        self._current_page = page_id
+        cleared = [key for key, owner in self._page_of_key.items()
+                   if owner != page_id and key in self]
+        for key in cleared:
+            super().__delitem__(key)
+        return cleared
+
+    def undeclared_keys(self):
+        """Keys written so far without a declaration, sorted."""
+        return sorted(self._undeclared)
+
+    def _is_declared(self, key):
+        if key in self._page_of_key or key in self._session_reasons:
+            return True
+        return any(key.startswith(prefix) for prefix in self._session_prefixes)
+
+    def _track_write(self, key):
+        if not self._is_declared(key):
+            self._undeclared.add(key)
+
+    def __setitem__(self, key, value):
+        self._track_write(key)
+        super().__setitem__(key, value)
+
+    def update(self, *args, **kwargs):
+        other = dict(*args, **kwargs)
+        for key in other:
+            self._track_write(key)
+        super().update(other)
+
+    def setdefault(self, key, default=None):
+        if key not in self:
+            self._track_write(key)
+        return super().setdefault(key, default)
+
+
 # ===== OCR Factory =====
 
 def create_universal_ocr(config_dict):
