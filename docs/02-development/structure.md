@@ -76,6 +76,7 @@
 - **platforms/kham_rwd.py** - 中職售票 UTK RWD 家族（中信兄弟/味全龍/富邦悍將＋籃球隊伍）（#40，ADR 0006）
 - **platforms/kham_seat.py** - KHAM 家族座位選擇流程（#42，ADR 0006）
 - **platforms/kham_udn_seat.py** - UDN 座位選擇流程（#44，ADR 0006）
+- **platforms/kham_ticket_seat.py** - 年代售票（ticket.com.tw）座位選擇流程與登入（#46，ADR 0006）
 - **platforms/hkticketing.py** - HKTicketing + GalaxyMacau + Ticketek 平台（30 函式）
 
 ### 🌐 支援平台清單
@@ -422,9 +423,9 @@ Fansigo 主流程
 其他平台
 ├── nodriver_facebook_login              # platforms/facebook.py
 ├── nodriver_facebook_main               # platforms/facebook.py
-├── nodriver_ticket_login                # platforms/kham.py
+├── nodriver_ticket_login                # platforms/kham_ticket_seat.py
 │
-├── 年代售票 座位選擇模組 (platforms/kham.py)
+├── 年代售票 座位選擇模組 (platforms/kham_ticket_seat.py)
 ├── nodriver_ticket_seat_type_auto_select
 ├── nodriver_ticket_seat_auto_select
 ├── nodriver_ticket_seat_main

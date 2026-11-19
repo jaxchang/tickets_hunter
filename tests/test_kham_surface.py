@@ -16,7 +16,14 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from platforms import kham, kham_rwd, kham_seat, kham_shared, kham_udn_seat  # noqa: E402
+from platforms import (  # noqa: E402
+    kham,
+    kham_rwd,
+    kham_seat,
+    kham_shared,
+    kham_ticket_seat,
+    kham_udn_seat,
+)
 
 
 class KhamSurfaceTest(unittest.TestCase):
@@ -69,9 +76,21 @@ class KhamSurfaceTest(unittest.TestCase):
             kham.nodriver_udn_seat_auto_select, kham_udn_seat.nodriver_udn_seat_auto_select
         )
 
+    def test_ticket_seat_cluster_lives_in_kham_ticket_seat(self):
+        self.assertIs(
+            kham.nodriver_ticket_seat_main, kham_ticket_seat.nodriver_ticket_seat_main
+        )
+        self.assertIs(kham.nodriver_ticket_login, kham_ticket_seat.nodriver_ticket_login)
+
     def test_siblings_do_not_import_the_facade(self):
         src_dir = os.path.join(os.path.dirname(__file__), "..", "src", "platforms")
-        for module in ("kham_shared", "kham_rwd", "kham_seat", "kham_udn_seat"):
+        for module in (
+            "kham_shared",
+            "kham_rwd",
+            "kham_seat",
+            "kham_udn_seat",
+            "kham_ticket_seat",
+        ):
             with open(os.path.join(src_dir, module + ".py"), encoding="utf-8") as fh:
                 text = fh.read()
             self.assertNotIn("from platforms.kham import", text)
