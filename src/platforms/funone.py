@@ -14,6 +14,7 @@ except Exception:
 
 import util
 from nodriver_common import (
+    PageState,
     check_and_handle_pause,
     nodriver_current_url_safe,
     play_sound_while_ordering,
@@ -48,7 +49,44 @@ __all__ = [
 # kktix's CONST_KKTIX_NEXT_BUTTON_COOLDOWN because FunOne's POST takes seconds.
 CONST_FUNONE_SUBMIT_COOLDOWN = 5.0
 
-_state = {}
+# Module-level state. Keys declare their lifecycle here, in one place
+# (issue #11, ADR 0002): page keys would be cleared by PageState when
+# the main function moves to a different page; every current key is
+# session state for the reason stated. Page ids are the main function's
+# own page_type values, lowercased (UNKNOWN maps to None).
+_state = PageState("funone")
+_state.declare_session("is_session_selecting", "selection in-progress flag for the ticket flow")
+_state.declare_session("is_ticket_selecting", "selection in-progress flag for the ticket flow")
+_state.declare_session("played_sound_ticket", "sound plays once per purchase flow")
+_state.declare_session("played_sound_order", "sound plays once per purchase flow")
+_state.declare_session("fail_list", "failure memory for the ticket flow")
+_state.declare_session("reload_count", "reload counter across rounds")
+_state.declare_session("last_page_type", "page-type tracker driving the main function's reset batch")
+_state.declare_session("last_step", "log-dedup tracker (last seen step)")
+_state.declare_session("last_login_status", "log-dedup tracker (last seen login status)")
+_state.declare_session("last_area_count", "log-dedup tracker (last seen area count)")
+_state.declare_session("last_area_config", "log-dedup tracker (last seen area config)")
+_state.declare_session("last_ticket_qty", "log-dedup tracker (last seen ticket quantity)")
+_state.declare_session("qty_selector_notfound", "quantity selector not-found flag for the ticket flow")
+_state.declare_session("submit_notfound", "submit button not-found flag for the ticket flow")
+_state.declare_session("last_captcha_type", "log-dedup tracker (last seen captcha type)")
+_state.declare_session("waiting_captcha_printed", "log-once flag; reset by the main function's page-change batch")
+_state.declare_session("captcha_filled_printed", "log-once flag; reset by the main function's page-change batch")
+_state.declare_session("ocr_retry_count", "OCR retry counter; reset by the main function's page-change batch")
+_state.declare_session("ocr_exhausted", "OCR exhaustion flag; reset by the main function's page-change batch")
+_state.declare_session("captcha_attempted", "captcha attempt flag for the ticket flow")
+_state.declare_session("checkout_printed", "checkout log-once flag")
+_state.declare_session("next_button_clicked", "next-button flag; reset by the main function's page-change batch")
+_state.declare_session("refresh_retry_count", "sold-out refresh counter; reset by the main function's page-change batch")
+_state.declare_session("last_sold_out_logged", "sold-out log-once flag; reset by the main function's page-change batch")
+_state.declare_session("max_retry_logged", "max-retry log-once flag; reset by the main function's page-change batch")
+_state.declare_session("qty_sold_out_refreshing", "sold-out refresh flag; reset by the main function's page-change batch")
+_state.declare_session("qty_fail_reason", "last quantity-selection failure reason")
+_state.declare_session("waiting_page_logged", "waiting page log-once flag; reset by the main function's page-change batch")
+_state.declare_session("ocr_instance", "OCR instance cached for the whole run")
+_state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
+_state.declare_session("order_submitted_url", "submit cooldown guard, keyed by URL by design")
+_state.declare_session("order_submitted_time", "submit cooldown guard, keyed by URL by design")
 
 
 def _is_submit_cooldown(url, submitted_url, submitted_time, now):
@@ -1879,6 +1917,10 @@ async def nodriver_funone_main(tab, url, config_dict):
         else:
             # Check for ticket selection or order pages dynamically
             page_type = "TICKET_FLOW"
+
+    # Page state lifecycle (issue #11): feed the page classification the
+    # dispatch already computed into PageState once per pass.
+    _state.set_page(None if page_type == "UNKNOWN" else page_type.lower())
 
     # Only print when page type changes (reduce repetitive messages)
     if _state.get("last_page_type") != page_type:
