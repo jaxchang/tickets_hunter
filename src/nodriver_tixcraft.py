@@ -53,6 +53,35 @@ from platforms.ibon import *
 from platforms.kham import *
 from platforms.hkticketing import *
 
+from platforms.kktix import PLATFORM_ENTRIES as _KKTIX_ENTRIES
+from platforms.tixcraft import PLATFORM_ENTRIES as _TIXCRAFT_ENTRIES
+from platforms.famiticket import PLATFORM_ENTRIES as _FAMITICKET_ENTRIES
+from platforms.ibon import PLATFORM_ENTRIES as _IBON_ENTRIES
+from platforms.kham import PLATFORM_ENTRIES as _KHAM_ENTRIES
+from platforms.ticketplus import PLATFORM_ENTRIES as _TICKETPLUS_ENTRIES
+from platforms.cityline import PLATFORM_ENTRIES as _CITYLINE_ENTRIES
+from platforms.hkticketing import PLATFORM_ENTRIES as _HKTICKETING_ENTRIES
+from platforms.funone import PLATFORM_ENTRIES as _FUNONE_ENTRIES
+from platforms.fansigo import PLATFORM_ENTRIES as _FANSIGO_ENTRIES
+from platforms.facebook import PLATFORM_ENTRIES as _FACEBOOK_ENTRIES
+
+# Platform dispatch registry (issue #34, ADR 0005): each platform module
+# declares its own entries; the order here is the historical dispatch
+# order of the if-chain this registry replaced.
+PLATFORM_REGISTRY = [
+    *_KKTIX_ENTRIES,
+    *_TIXCRAFT_ENTRIES,
+    *_FAMITICKET_ENTRIES,
+    *_IBON_ENTRIES,
+    *_KHAM_ENTRIES,
+    *_TICKETPLUS_ENTRIES,
+    *_CITYLINE_ENTRIES,
+    *_HKTICKETING_ENTRIES,
+    *_FUNONE_ENTRIES,
+    *_FANSIGO_ENTRIES,
+    *_FACEBOOK_ENTRIES,
+]
+
 CONST_CITYLINE_SIGN_IN_URL = "https://www.cityline.com/Login.html?targetUrl=https%3A%2F%2Fwww.cityline.com%2FEvents.html"
 CONST_CITYLINE_HK_SIGN_IN_URL = "https://www.cityline.com.hk/Login.html?targetUrl=%s"
 CONST_FAMI_SIGN_IN_URL = "https://www.famiticket.com.tw/Home/User/SignIn"
@@ -841,7 +870,6 @@ async def main(args):
         "reached": False,
         "last_countdown_print": 0,
     }
-    ticketplus_purchase_done = False  # Guard: stop polling after purchase completed
 
     # Initialize config mtime (hot-reload watches the file actually loaded)
     app_root = util.get_app_root()
@@ -967,101 +995,16 @@ async def main(args):
                     if cloudflare_fail_count >= 3:
                         print("[CLOUDFLARE] Max failures reached, waiting for URL change to retry")
 
-        # for kktix.cc and kktix.com
-        if 'kktix.c' in url:
-            is_quit_bot = await nodriver_kktix_main(tab, url, config_dict)
-            if is_quit_bot:
-                # 不自動暫停：讓多開實例可獨立運作
-                # 保留 is_quit_bot = False 以防止程式結束，但不建立暫停檔案
-                is_quit_bot = False
-
-        tixcraft_family = False
-        if 'tixcraft.com' in url:
-            tixcraft_family = True
-
-        if 'indievox.com' in url:
-            tixcraft_family = True
-
-        if 'ticketmaster.' in url:
-            tixcraft_family = True
-
-        if tixcraft_family:
-            is_quit_bot = await nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser)
-            if is_quit_bot:
-                # 不自動暫停：讓多開實例可獨立運作
-                # 保留 is_quit_bot = False 以防止程式結束，但不建立暫停檔案
-                is_quit_bot = False
-
-        if 'famiticket.com' in url:
-            await nodriver_famiticket_main(tab, url, config_dict)
-
-        if 'ibon.com' in url:
-            await nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser)
-
-        kham_family = False
-        if 'kham.com.tw' in url:
-            kham_family = True
-
-        if 'ticket.com.tw' in url:
-            kham_family = True
-
-        if 'tickets.udnfunlife.com' in url:
-            kham_family = True
-
-        # 中職售票 (中信兄弟 / 味全龍 / 富邦悍將, plus 中信特攻 / 富邦勇士 basketball): the RWD build of the same UTK system
-        if is_utk_rwd_url(url):
-            kham_family = True
-
-        if kham_family:
-            tab = await nodriver_kham_main(tab, url, config_dict, ocr)
-
-        # https://ticketplus.com.tw/*
-        if 'ticketplus.com' in url and not ticketplus_purchase_done:
-            tp_status = await nodriver_ticketplus_main(tab, url, config_dict, ocr, Captcha_Browser)
-
-            if isinstance(tp_status, dict):
-                if tp_status.get("purchase_completed", False):
-                    if not ticketplus_purchase_done:
-                        print("[SUCCESS] TicketPlus purchase completed")
-                        ticketplus_purchase_done = True
-                elif tp_status.get("is_ticket_assigned", False) and '/confirm/' in url.lower():
-                    if not ticketplus_purchase_done:
-                        print("[SUCCESS] TicketPlus on confirmation page, booking successful")
-                        ticketplus_purchase_done = True
-
-        if 'urbtix.hk' in url:
-            #urbtix_main(driver, url, config_dict)
-            pass
-
-        if 'cityline.com' in url:
-            tab = await nodriver_cityline_main(tab, url, config_dict)
-
-        softix_family = False
-        if 'hkticketing.com' in url:
-            softix_family = True
-        if 'galaxymacau.com' in url:
-            softix_family = True
-        if 'ticketek.com' in url:
-            softix_family = True
-        if softix_family:
-            tab = await nodriver_hkticketing_main(tab, url, config_dict)
-
-        # FunOne Tickets
-        if 'tickets.funone.io' in url:
-            tab = await nodriver_funone_main(tab, url, config_dict)
-
-        # FANSI GO
-        if 'go.fansi.me' in url:
-            tab = await nodriver_fansigo_main(tab, url, config_dict)
-
-        # FANSI GO Cognito login
-        if FANSIGO_COGNITO_DOMAIN in url:
-            await nodriver_fansigo_signin(tab, url, config_dict)
-
-        # for facebook
-        facebook_login_url = 'https://www.facebook.com/login.php?'
-        if url[:len(facebook_login_url)]==facebook_login_url:
-            await nodriver_facebook_main(tab, config_dict)
+        # Platform dispatch (issue #34, ADR 0005): run every registry
+        # entry whose matcher accepts this URL, in registry order. A
+        # handler returns the tab to continue with, or None to keep it.
+        ctx = PlatformContext(tab=tab, url=url, config_dict=config_dict, ocr=ocr, captcha_browser=Captcha_Browser)
+        for entry in PLATFORM_REGISTRY:
+            if entry.matches(url):
+                new_tab = await entry.handler(ctx)
+                if new_tab is not None:
+                    tab = new_tab
+                    ctx.tab = new_tab
 
 def run_ocr_self_test():
     """Load both OCR models and read one rendered image; 0 means OCR works.

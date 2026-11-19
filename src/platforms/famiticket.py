@@ -9,6 +9,7 @@ import random
 import util
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     CONST_FROM_TOP_TO_BOTTOM,
     CONST_MAXBOT_ANSWER_ONLINE_FILE,
@@ -16,6 +17,7 @@ from nodriver_common import (
 
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "nodriver_fami_login",
     "nodriver_fami_activity",
     "nodriver_fami_verify",
@@ -806,3 +808,15 @@ async def nodriver_famiticket_main(tab, url, config_dict):
         debug.log(f"[FAMITICKET MAIN] Error: {str(exc)}")
 
     return result
+
+# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
+# keeps its pre-interface signature until its migration batch; its bool
+# return was discarded by the dispatcher, and the adapter discards it.
+async def _legacy_entry(ctx):
+    await nodriver_famiticket_main(ctx.tab, ctx.url, ctx.config_dict)
+    return None
+
+
+PLATFORM_ENTRIES = [
+    PlatformEntry("famiticket", _legacy_entry, patterns=("famiticket.com",)),
+]

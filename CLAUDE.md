@@ -83,6 +83,7 @@ python build_scripts/build_local.py             # 打包並驗證能啟動（改
 - 所有執行期行為由 `settings.json` 控制。禁止把使用者可能需要調整的值寫死在程式碼中。
 - 新增設定鍵必須同時在 `src/settings.py` 的設定綱要中宣告。
 - 已設有檢視的階段，設定一律經 `src/config_views.py` 的檢視函式讀取（ADR 0004）：`date_selection` 的 config 包必須以 `config_views.date_view(config_dict)` 組裝，不得在 handler 內直接索引 `date_auto_select`/`keyword_exclude`/`date_auto_fallback` 組包（平台決定如覆寫欄位值不在此限，須以註解標明出處）。檢視必須是對當前 dict 的純函式現算，禁止快照或快取（`reload_config()` 會就地更新 dict）。刷新間隔的計算一律以 `config_views.reload_interval(config_dict, default=...)` 為準（`util.get_reload_interval` 已刪除）；直接讀 `advanced.auto_reload_page_interval` 的既有點屬已盤點標記的分歧（issue #32），未經另案決定不得逕行改接或統一預設。
+- 平台派發一律經 `PLATFORM_REGISTRY`（ADR 0005）：平台模組以 `PLATFORM_ENTRIES` 自宣告網址型態與 handler，主函式簽名為 `nodriver_{platform}_main(ctx)`（`nodriver_common.PlatformContext`），回傳新 tab 或 None；不得在 `nodriver_tixcraft.py` 新增平台 if 分派，亦不得讓主迴圈讀取平台專屬回傳（平台結果由平台以自身 `_state` 記住）。未遷移平台的 legacy adapter 只保真現行語意，於該平台遷移時刪除。
 
 ### 目錄結構
 

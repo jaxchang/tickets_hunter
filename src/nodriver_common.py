@@ -180,6 +180,51 @@ class PageState(dict):
 
 # ===== OCR Factory =====
 
+class PlatformContext:
+    """The one argument every platform entry point receives (issue #34, ADR 0005).
+
+    The dispatcher builds a fresh context per main-loop pass. A platform
+    main unpacks the fields it needs at the top; fields a platform does
+    not use are simply not unpacked. ``captcha_browser`` is the loop's
+    Captcha_Browser (a NonBrowser) or None when OCR is disabled, and
+    ``ocr`` follows the same rule.
+    """
+
+    def __init__(self, tab, url, config_dict, ocr=None, captcha_browser=None):
+        self.tab = tab
+        self.url = url
+        self.config_dict = config_dict
+        self.ocr = ocr
+        self.captcha_browser = captcha_browser
+
+
+class PlatformEntry:
+    """One dispatchable platform entry (issue #34, ADR 0005).
+
+    A platform module declares its entries as ``PLATFORM_ENTRIES``; the
+    dispatcher assembles them into one registry and, per pass, runs the
+    handler of every entry whose matcher accepts the current URL
+    (run-all-matches, in registry order). The handler is an async
+    callable taking a PlatformContext and returning the tab the loop
+    should continue with, or None to keep the current tab.
+
+    Matching is a case-sensitive substring test of ``patterns`` against
+    the raw URL, OR ``match_fn(url)`` when a platform needs more than
+    substrings (Kham's UTK RWD host parse, Facebook's login prefix).
+    """
+
+    def __init__(self, name, handler, patterns=(), match_fn=None):
+        self.name = name
+        self.handler = handler
+        self.patterns = tuple(patterns)
+        self.match_fn = match_fn
+
+    def matches(self, url):
+        if any(pattern in url for pattern in self.patterns):
+            return True
+        return bool(self.match_fn and self.match_fn(url))
+
+
 def create_universal_ocr(config_dict):
     """Create OCR instance using the universal captcha model based on settings.
 

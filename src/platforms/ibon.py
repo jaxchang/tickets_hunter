@@ -20,6 +20,7 @@ from zendriver import cdp
 import util
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     asyncio_sleep_with_pause_check,
     check_and_handle_pause,
@@ -50,6 +51,7 @@ CONST_IBON_CARD_PREFIX_LENGTH_RE = re.compile(r"前(\d{1,2})[碼位]")
 nodriver_ibon_get_captcha_image_from_shadow_dom = nodriver_get_captcha_image_from_dom_snapshot
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "register_ibon_alert_handler",
     "dismiss_pending_ibon_dialog",
     "nodriver_ibon_login",
@@ -5087,3 +5089,16 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
         _state["shown_checkout_message"] = False
     return tab
 
+
+# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
+# keeps its pre-interface signature until its migration batch; its tab
+# return was discarded by the dispatcher (adopting it is that batch's
+# flagged change), so the adapter discards it too.
+async def _legacy_entry(ctx):
+    await nodriver_ibon_main(ctx.tab, ctx.url, ctx.config_dict, ctx.ocr, ctx.captcha_browser)
+    return None
+
+
+PLATFORM_ENTRIES = [
+    PlatformEntry("ibon", _legacy_entry, patterns=("ibon.com",)),
+]

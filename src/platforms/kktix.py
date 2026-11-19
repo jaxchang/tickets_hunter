@@ -21,6 +21,7 @@ import util
 import date_selection
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     cdp_click_at,
     check_and_handle_pause,
@@ -40,6 +41,7 @@ from nodriver_common import (
 )
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "is_kktix_login_page",
     "nodriver_kktix_signin",
     "nodriver_kktix_paused_main",
@@ -3074,3 +3076,16 @@ async def nodriver_kktix_order_member_code(tab, config_dict):
         debug.log(f"[KKTIX MEMBER CODE] Error filling member code: {str(e)}")
         return False
 
+
+# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
+# keeps its pre-interface signature until its migration batch. The
+# dispatcher used to neutralize its is_quit_bot return on every pass,
+# so the adapter discards it.
+async def _legacy_entry(ctx):
+    await nodriver_kktix_main(ctx.tab, ctx.url, ctx.config_dict)
+    return None
+
+
+PLATFORM_ENTRIES = [
+    PlatformEntry("kktix", _legacy_entry, patterns=("kktix.c",)),
+]

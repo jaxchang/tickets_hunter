@@ -26,6 +26,7 @@ import util
 import date_selection
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     check_and_handle_pause,
     sleep_with_pause_check,
@@ -45,6 +46,7 @@ from nodriver_common import (
 )
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "nodriver_tixcraft_home_close_window",
     "nodriver_tixcraft_redirect",
     "nodriver_ticketmaster_parse_zone_info",
@@ -3257,10 +3259,16 @@ async def nodriver_ticketmaster_check_ip_block(tab, config_dict, current_url="")
         return False
 
 
-async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
+async def nodriver_tixcraft_main(ctx):
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+    ocr = ctx.ocr
+    Captcha_Browser = ctx.captcha_browser
+
     # 函數開始時檢查暫停
     if await check_and_handle_pause(config_dict):
-        return False
+        return None
 
     debug = util.create_debug_logger(config_dict)
 
@@ -3403,7 +3411,7 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
     if should_pause:
         if not was_in_queue:
             debug.log("[TIXCRAFT] Queue-IT entered, waiting...")
-        return False
+        return None
     if elapsed is not None:
         debug.log(f"[TIXCRAFT] Queue-IT passed (waited {elapsed:.1f}s)")
 
@@ -3412,7 +3420,7 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
     # EPS block detection for TixCraft family and Ticketmaster domains (Issue #289)
     if _is_tixcraft_soft_block_scope(url) or 'ticketmaster' in url:
         if await nodriver_ticketmaster_check_ip_block(tab, config_dict, current_url=url):
-            return False
+            return None
 
     # special case for same event re-open, redirect to user's homepage.
     # Add cooldown to prevent infinite redirect loop when area page is unavailable
@@ -3609,5 +3617,18 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
             print("TixCraft ticket purchase completed")
             _state["printed_completed"] = True
 
-    return is_quit_bot
+    # Platform interface (issue #34): the former is_quit_bot return was
+    # neutralized by the dispatcher on every pass, so the main now
+    # returns None (keep the current tab) like every other entry point.
+    return None
+
+
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
+PLATFORM_ENTRIES = [
+    PlatformEntry(
+        "tixcraft",
+        nodriver_tixcraft_main,
+        patterns=("tixcraft.com", "indievox.com", "ticketmaster."),
+    ),
+]
 

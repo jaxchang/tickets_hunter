@@ -163,8 +163,8 @@ async def nodriver_xxx_main(tab, url, config_dict):
 
 ## 10. 新增平台模組流程
 
-1. 建立 `src/platforms/{platform}.py`，函式命名 `nodriver_{platform}_{action}`，狀態用模組層級 `_state`（比照既有模組慣例；新模組可直接採 `PageState` 宣告生命週期）
-2. 主檔新增 `from platforms.{platform} import *` 與 URL 路由分派
+1. 建立 `src/platforms/{platform}.py`，函式命名 `nodriver_{platform}_{action}`，狀態用模組層級 `_state`（比照既有模組慣例；新模組可直接採 `PageState` 宣告生命週期）；主函式採平台介面契約（ADR 0005）：簽名 `nodriver_{platform}_main(ctx)`、回傳新 tab 或 None，並於模組內宣告 `PLATFORM_ENTRIES`（網址 patterns、可選 match 函式、handler）
+2. 主檔新增 `from platforms.{platform} import *`，並將該模組的 `PLATFORM_ENTRIES` 以別名 import 加入 `PLATFORM_REGISTRY`（順序即派發順序）
 3. `build_scripts/nodriver_tixcraft.spec` 的 `hiddenimports` 新增 `'platforms.{platform}'`
 4. 驗證（`py_compile`、import 鏈、煙霧測試）後更新 `docs/02-development/structure.md` 函式索引
 
