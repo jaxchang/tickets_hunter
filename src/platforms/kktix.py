@@ -1119,9 +1119,10 @@ async def nodriver_kktix_reg_captcha(tab, config_dict, fail_list, registrationsN
             is_question_popup = True
             write_question_to_file(question_text)
 
+            answer_config = config_views.answer_view(config_dict)
             answer_list = util.get_answer_list_from_user_guess_string(config_dict, CONST_MAXBOT_ANSWER_ONLINE_FILE)
             if len(answer_list)==0:
-                if config_dict["advanced"]["auto_guess_options"]:
+                if answer_config["auto_guess_options"]:
                     answer_list = util.get_answer_list_from_question_string(None, question_text, config_dict)
 
             if len(answer_list) > 0:
@@ -2974,7 +2975,8 @@ async def nodriver_kktix_order_member_code(tab, config_dict):
         return False
 
     # 讀取會員序號設定（複用 discount_code）
-    member_code = config_dict["advanced"].get("discount_code", "").strip()
+    answer_config = config_views.answer_view(config_dict)
+    member_code = answer_config["discount_code"].strip()
 
     # 如果沒有設定會員序號，直接跳過
     if not member_code:

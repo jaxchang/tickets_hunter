@@ -2121,7 +2121,8 @@ async def nodriver_ticketplus_order_exclusive_code(tab, config_dict, fail_list):
         return False, fail_list, False
 
     credit_card_prefix = config_dict.get("contact", {}).get("credit_card_prefix", "").strip()
-    discount_code = config_dict.get("advanced", {}).get("discount_code", "").strip()
+    answer_config = config_views.answer_view(config_dict)
+    discount_code = answer_config["discount_code"].strip()
 
     if not discount_code and not credit_card_prefix:
         debug.log("[EXCLUSIVE CODE] Neither a discount code nor a card prefix is configured, skipping")

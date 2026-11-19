@@ -24,7 +24,7 @@ caching or hidden state.
 
 import random
 
-__all__ = ["date_view", "reload_interval", "area_view", "ticket_number", "captcha_view"]
+__all__ = ["date_view", "reload_interval", "area_view", "ticket_number", "captcha_view", "answer_view"]
 
 
 def date_view(config_dict):
@@ -125,6 +125,32 @@ def captcha_view(config_dict):
         "beta": ocr.get("beta", True),
         "force_submit": ocr.get("force_submit", True),
         "image_source": ocr.get("image_source") or "canvas",
+    }
+
+
+def answer_view(config_dict):
+    """The verify-question stage's config bundle (issue #62).
+
+    All three keys live in the ``advanced`` section:
+
+    - ``auto_guess_options``: False when missing (the settings
+      default, and what every current reader de-facto uses).
+    - ``user_guess_string``: ``""`` when missing, returned raw --
+      call sites that stripped the value keep stripping it.
+    - ``discount_code``: ``""`` when missing, returned raw for the
+      same reason.
+
+    ``util.get_answer_list_from_user_guess_string`` reads
+    ``user_guess_string`` itself and deliberately stays that way:
+    it is the single choke point every platform calls, and util
+    sits below this module in the dependency direction, so it
+    cannot import the view.
+    """
+    advanced = config_dict.get("advanced") or {}
+    return {
+        "auto_guess_options": advanced.get("auto_guess_options", False),
+        "user_guess_string": advanced.get("user_guess_string", ""),
+        "discount_code": advanced.get("discount_code", ""),
     }
 
 

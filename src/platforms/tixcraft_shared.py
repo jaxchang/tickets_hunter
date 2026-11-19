@@ -349,9 +349,10 @@ async def nodriver_tixcraft_input_check_code(tab, config_dict, fail_list, questi
     if len(question_text) > 0:
         write_question_to_file(question_text)
 
+        answer_config = config_views.answer_view(config_dict)
         answer_list = util.get_answer_list_from_user_guess_string(config_dict, CONST_MAXBOT_ANSWER_ONLINE_FILE)
         if len(answer_list)==0:
-            if config_dict["advanced"]["auto_guess_options"]:
+            if answer_config["auto_guess_options"]:
                 # Note: guess_tixcraft_question() doesn't use the driver parameter
                 answer_list = util.guess_tixcraft_question(None, question_text, config_dict)
 
@@ -363,7 +364,7 @@ async def nodriver_tixcraft_input_check_code(tab, config_dict, fail_list, questi
         # Guard: only trigger for member/serial/promo style prompts so the
         # discount_code is not wasted on unrelated questions (math, trivia, etc.).
         if len(answer_list)==0:
-            discount_code_fallback = (config_dict["advanced"].get("discount_code") or "").strip()
+            discount_code_fallback = (answer_config["discount_code"] or "").strip()
             if discount_code_fallback and _is_serial_code_question(question_text):
                 debug.log("[VERIFY] Using discount_code as serial-code fallback answer")
                 answer_list = [discount_code_fallback]

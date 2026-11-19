@@ -269,5 +269,49 @@ class CaptchaViewTest(unittest.TestCase):
         self.assertEqual(config_views.captcha_view(config)["enable"], False)
 
 
+class AnswerViewTest(unittest.TestCase):
+    def test_full_config_maps_each_field(self):
+        config = {
+            "advanced": {
+                "auto_guess_options": True,
+                "user_guess_string": "  AB12  ",
+                "discount_code": " EARLY2026 ",
+            }
+        }
+        view = config_views.answer_view(config)
+        self.assertEqual(
+            view,
+            {
+                "auto_guess_options": True,
+                "user_guess_string": "  AB12  ",
+                "discount_code": " EARLY2026 ",
+            },
+        )
+
+    def test_missing_section_yields_defaults(self):
+        view = config_views.answer_view({})
+        self.assertEqual(
+            view,
+            {
+                "auto_guess_options": False,
+                "user_guess_string": "",
+                "discount_code": "",
+            },
+        )
+
+    def test_strings_are_returned_raw(self):
+        # Call sites that strip keep stripping; the view must not.
+        config = {"advanced": {"user_guess_string": "  x  ", "discount_code": " y "}}
+        view = config_views.answer_view(config)
+        self.assertEqual(view["user_guess_string"], "  x  ")
+        self.assertEqual(view["discount_code"], " y ")
+
+    def test_view_is_computed_fresh_from_current_dict(self):
+        config = {"advanced": {"auto_guess_options": False}}
+        self.assertEqual(config_views.answer_view(config)["auto_guess_options"], False)
+        config["advanced"]["auto_guess_options"] = True
+        self.assertEqual(config_views.answer_view(config)["auto_guess_options"], True)
+
+
 if __name__ == "__main__":
     unittest.main()
