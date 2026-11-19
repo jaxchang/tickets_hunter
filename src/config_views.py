@@ -24,7 +24,7 @@ caching or hidden state.
 
 import random
 
-__all__ = ["date_view", "reload_interval", "area_view", "ticket_number"]
+__all__ = ["date_view", "reload_interval", "area_view", "ticket_number", "captcha_view"]
 
 
 def date_view(config_dict):
@@ -95,6 +95,33 @@ def ticket_number(config_dict, default=2):
     call site instead of being silently unified.
     """
     return config_dict.get("ticket_number", default)
+
+
+def captcha_view(config_dict):
+    """The captcha stage's config bundle (issue #58).
+
+    - ``enable``: ``ocr_captcha.enable``; True when missing (the
+      settings default). A few readers historically defaulted a
+      missing key to False, silently disabling OCR; the view follows
+      the settings default, as flagged in issue #58.
+    - ``beta``: ``ocr_captcha.beta``; True when missing.
+    - ``force_submit``: ``ocr_captcha.force_submit``; True when
+      missing.
+    - ``image_source``: ``ocr_captcha.image_source``; ``"canvas"``
+      when missing or empty.
+
+    The OCR factories in nodriver_common read ``use_universal`` and
+    ``path`` themselves; those are factory-internal and deliberately
+    not part of this view. A missing ``ocr_captcha`` section yields
+    the defaults instead of raising (ADR 0004).
+    """
+    ocr = config_dict.get("ocr_captcha") or {}
+    return {
+        "enable": ocr.get("enable", True),
+        "beta": ocr.get("beta", True),
+        "force_submit": ocr.get("force_submit", True),
+        "image_source": ocr.get("image_source") or "canvas",
+    }
 
 
 def reload_interval(config_dict, default=0):

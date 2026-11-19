@@ -2269,8 +2269,9 @@ async def nodriver_ticketplus_main(ctx):
 
     home_url = 'https://ticketplus.com.tw/'
     is_user_signin = False
+    captcha_config = config_views.captcha_view(config_dict)
     if home_url == url.lower():
-        if config_dict["ocr_captcha"]["enable"]:
+        if captcha_config["enable"]:
             domain_name = url.split('/')[2]
             if not Captcha_Browser is None:
                 Captcha_Browser.set_domain(domain_name)

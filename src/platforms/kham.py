@@ -1214,6 +1214,7 @@ async def nodriver_kham_main(ctx):
     debug = util.create_debug_logger(config_dict)
     area_config = config_views.area_view(config_dict)
     ticket_number_value = config_views.ticket_number(config_dict)
+    captcha_config = config_views.captcha_view(config_dict)
 
     if is_rwd and await nodriver_utk_rwd_ensure_login(tab, url, config_dict, ocr):
         return tab
@@ -1493,7 +1494,7 @@ async def nodriver_kham_main(ctx):
 
                 # Handle captcha if enabled
                 is_captcha_sent = False
-                if config_dict["ocr_captcha"]["enable"]:
+                if captcha_config["enable"]:
                     debug.log("Starting captcha processing for purchase page...")
 
                     model_name = url.split('/')[5] if len(url.split('/')) > 5 else "UTK0201"
@@ -2087,7 +2088,7 @@ async def nodriver_kham_main(ctx):
             await nodriver_kham_check_realname_dialog(tab, config_dict)
 
             # Check captcha error
-            if config_dict["ocr_captcha"]["enable"]:
+            if captcha_config["enable"]:
                 is_reset = await nodriver_kham_check_captcha_text_error(tab, config_dict)
                 if is_reset:
                     await nodriver_kham_captcha(tab, config_dict, ocr, model_name)
@@ -2265,7 +2266,7 @@ async def nodriver_kham_main(ctx):
 
             # Handle captcha if enabled
             is_captcha_sent = False
-            if config_dict["ocr_captcha"]["enable"]:
+            if captcha_config["enable"]:
                 is_captcha_sent = await nodriver_kham_captcha(tab, config_dict, ocr, model_name)
 
             if is_captcha_sent:
@@ -2361,13 +2362,13 @@ async def nodriver_kham_main(ctx):
             # Check captcha error dialog FIRST (before checking filled state).
             # An error dialog means the server has refreshed the captcha image,
             # so the old value in the input field is stale and must be cleared.
-            if config_dict["ocr_captcha"]["enable"]:
+            if captcha_config["enable"]:
                 is_reset = await nodriver_kham_check_captcha_text_error(tab, config_dict)
                 if is_reset:
                     is_captcha_sent = await nodriver_kham_captcha(tab, config_dict, ocr, model_name)
 
             # Then check if captcha is already filled (from previous page or above OCR)
-            if config_dict["ocr_captcha"]["enable"] and not is_captcha_sent:
+            if captcha_config["enable"] and not is_captcha_sent:
                 try:
                     captcha_value = await tab.evaluate('''
                         (function() {
@@ -2403,7 +2404,7 @@ async def nodriver_kham_main(ctx):
                     pass
 
             # Handle captcha only if not already sent
-            if config_dict["ocr_captcha"]["enable"] and not is_captcha_sent:
+            if captcha_config["enable"] and not is_captcha_sent:
                 is_captcha_sent = await nodriver_kham_captcha(tab, config_dict, ocr, model_name)
 
             # Set ticket number
@@ -2678,7 +2679,7 @@ async def nodriver_kham_main(ctx):
             except:
                 pass
 
-            if config_dict["ocr_captcha"]["enable"]:
+            if captcha_config["enable"]:
                 model_name = url.split('/')[5] if len(url.split('/')) > 5 else "UTK1306"
                 if len(model_name) > 7:
                     model_name = model_name[:7]

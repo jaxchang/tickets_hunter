@@ -1234,8 +1234,9 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
             is_seat_assigned = await nodriver_ticket_seat_auto_select(tab, config_dict)
 
     # Step 3: Handle captcha (reuse KHAM OCR)
+    captcha_config = config_views.captcha_view(config_dict)
     is_captcha_sent = False
-    if is_seat_assigned and config_dict["ocr_captcha"]["enable"]:
+    if is_seat_assigned and captcha_config["enable"]:
         try:
             # Find captcha input field
             captcha_input = await tab.query_selector('#ctl00_ContentPlaceHolder1_CHK')
@@ -1250,7 +1251,7 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
 
     # Step 4: Submit order
     is_submit_success = False
-    if is_seat_assigned and (not config_dict["ocr_captcha"]["enable"] or is_captcha_sent):
+    if is_seat_assigned and (not captcha_config["enable"] or is_captcha_sent):
         try:
             # 【修復 2】使用純 JavaScript 實作以避免 Element 序列化問題，加入多個備用選擇器
             import json
@@ -1342,7 +1343,7 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
             is_seat_assigned = await nodriver_ticket_seat_auto_select(tab, config_dict)
 
             # Retry captcha if needed
-            if is_seat_assigned and config_dict["ocr_captcha"]["enable"]:
+            if is_seat_assigned and captcha_config["enable"]:
                 try:
                     captcha_input = await tab.query_selector('#ctl00_ContentPlaceHolder1_CHK')
                     if captcha_input:
@@ -1354,7 +1355,7 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
                     debug.log(f"[ERROR] Retry captcha error: {exc}")
 
             # Retry submit
-            if is_seat_assigned and (not config_dict["ocr_captcha"]["enable"] or is_captcha_sent):
+            if is_seat_assigned and (not captcha_config["enable"] or is_captcha_sent):
                 try:
                     result = await tab.evaluate('''
                         (function() {

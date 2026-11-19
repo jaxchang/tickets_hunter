@@ -927,7 +927,8 @@ async def nodriver_ticketmaster_captcha(tab, config_dict, ocr, captcha_browser):
     tab.add_handler(cdp.page.JavascriptDialogOpening, on_captcha_alert)
 
     # Handle captcha
-    if not config_dict.get("ocr_captcha", {}).get("enable", False):
+    captcha_config = config_views.captcha_view(config_dict)
+    if not captcha_config["enable"]:
         # OCR disabled - manual input
         await nodriver_tixcraft_keyin_captcha_code(tab, answer="", auto_submit=False, config_dict=config_dict)
         return False
@@ -952,8 +953,8 @@ async def nodriver_ticketmaster_captcha(tab, config_dict, ocr, captcha_browser):
             try:
                 alert_state["detected"] = False  # Reset before each attempt
 
-                away_from_keyboard_enable = config_dict.get("ocr_captcha", {}).get("force_submit", False)
-                ocr_captcha_image_source = config_dict.get("ocr_captcha", {}).get("image_source", "canvas")
+                away_from_keyboard_enable = captcha_config["force_submit"]
+                ocr_captcha_image_source = captcha_config["image_source"]
                 domain_name = tab.target.url.split('/')[2]
 
                 # Call tixcraft_auto_ocr for captcha recognition

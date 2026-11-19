@@ -1145,7 +1145,8 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
             _state["captcha_alert_detected"] = False
 
         # Skip OCR if already completed on this URL (non-force_submit mode only)
-        is_force_submit = config_dict["ocr_captcha"]["force_submit"]
+        captcha_config = config_views.captcha_view(config_dict)
+        is_force_submit = captcha_config["force_submit"]
         if is_force_submit or _state.get("ocr_completed_url", "") != current_url:
             await nodriver_tixcraft_ticket_main_ocr(tab, config_dict, ocr, Captcha_Browser, domain_name)
         return
@@ -1265,7 +1266,8 @@ async def nodriver_tixcraft_submit_without_captcha(tab, config_dict):
             debug.log("[TIXCRAFT] Ticket count was reset, re-assigning next round")
         return False
 
-    if not config_dict["ocr_captcha"]["force_submit"]:
+    captcha_config = config_views.captcha_view(config_dict)
+    if not captcha_config["force_submit"]:
         debug.log("[TIXCRAFT] No captcha on this page; agreement and ticket count "
                   "are set. Auto-submit is off, so the order is left for you.")
         return False
@@ -1308,12 +1310,13 @@ async def nodriver_tixcraft_ticket_main_ocr(tab, config_dict, ocr, Captcha_Brows
         await nodriver_tixcraft_submit_without_captcha(tab, config_dict)
         return
 
-    away_from_keyboard_enable = config_dict["ocr_captcha"]["force_submit"]
-    if not config_dict["ocr_captcha"]["enable"]:
+    captcha_config = config_views.captcha_view(config_dict)
+    away_from_keyboard_enable = captcha_config["force_submit"]
+    if not captcha_config["enable"]:
         away_from_keyboard_enable = False
-    ocr_captcha_image_source = config_dict["ocr_captcha"]["image_source"]
+    ocr_captcha_image_source = captcha_config["image_source"]
 
-    if not config_dict["ocr_captcha"]["enable"]:
+    if not captcha_config["enable"]:
         # 手動模式
         await nodriver_tixcraft_keyin_captcha_code(tab, config_dict=config_dict)
     else:

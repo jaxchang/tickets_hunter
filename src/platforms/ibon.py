@@ -2796,17 +2796,18 @@ async def nodriver_ibon_captcha(tab, config_dict, ocr):
 
     debug = util.create_debug_logger(config_dict)
 
-    away_from_keyboard_enable = config_dict["ocr_captcha"]["force_submit"]
-    if not config_dict["ocr_captcha"]["enable"]:
+    captcha_config = config_views.captcha_view(config_dict)
+    away_from_keyboard_enable = captcha_config["force_submit"]
+    if not captcha_config["enable"]:
         away_from_keyboard_enable = False
 
     debug.log(f"[IBON CAPTCHA] Starting captcha handling")
-    debug.log(f"[IBON CAPTCHA] OCR enabled: {config_dict['ocr_captcha']['enable']}")
+    debug.log(f"[IBON CAPTCHA] OCR enabled: {captcha_config['enable']}")
     debug.log(f"[IBON CAPTCHA] Auto submit: {away_from_keyboard_enable}")
 
     is_captcha_sent = False
 
-    if not config_dict["ocr_captcha"]["enable"]:
+    if not captcha_config["enable"]:
         # Manual mode: focus captcha field if present; proceed only when no captcha on page
         is_editing, _ = await nodriver_ibon_keyin_captcha_code(tab, config_dict=config_dict)
         is_captcha_sent = not is_editing
@@ -4087,6 +4088,7 @@ async def nodriver_ibon_main(ctx):
     # Check if kicked to login page (Cookie/Session expired)
     debug = util.create_debug_logger(config_dict)
     area_config = config_views.area_view(config_dict)
+    captcha_config = config_views.captcha_view(config_dict)
 
     # Lazy-register alert handler (no-op if already registered by goto_homepage)
     await register_ibon_alert_handler(tab, config_dict)
@@ -4198,7 +4200,7 @@ async def nodriver_ibon_main(ctx):
     ]
     for each_url in home_url_list:
         if each_url == url.lower():
-            if config_dict["ocr_captcha"]["enable"]:
+            if captcha_config["enable"]:
                 # TODO:
                 #set_non_browser_cookies(driver, url, Captcha_Browser)
                 pass
@@ -4560,11 +4562,11 @@ async def nodriver_ibon_main(ctx):
                     is_captcha_sent = False
                     try:
                         ocr = None
-                        if config_dict["ocr_captcha"]["enable"]:
+                        if captcha_config["enable"]:
                             import ddddocr
                             ocr = create_universal_ocr(config_dict)
                             if ocr is None:
-                                ocr = ddddocr.DdddOcr(show_ad=False, beta=config_dict["ocr_captcha"]["beta"])
+                                ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
                                 ocr.set_ranges(0)
                         is_captcha_sent = await nodriver_ibon_captcha(tab, config_dict, ocr)
                     except Exception as exc:
@@ -4651,11 +4653,11 @@ async def nodriver_ibon_main(ctx):
                     is_captcha_sent = False
                     try:
                         ocr = None
-                        if config_dict["ocr_captcha"]["enable"]:
+                        if captcha_config["enable"]:
                             import ddddocr
                             ocr = create_universal_ocr(config_dict)
                             if ocr is None:
-                                ocr = ddddocr.DdddOcr(show_ad=False, beta=config_dict["ocr_captcha"]["beta"])
+                                ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
                                 ocr.set_ranges(0)
                         is_captcha_sent = await nodriver_ibon_captcha(tab, config_dict, ocr)
                     except Exception as exc:
@@ -4853,12 +4855,12 @@ async def nodriver_ibon_main(ctx):
                     Captcha_Browser.set_domain(domain_name, captcha_url=captcha_url)
 
                 ocr = None
-                if config_dict["ocr_captcha"]["enable"]:
+                if captcha_config["enable"]:
                     try:
                         import ddddocr
                         ocr = create_universal_ocr(config_dict)
                         if ocr is None:
-                            ocr = ddddocr.DdddOcr(show_ad=False, beta=config_dict["ocr_captcha"]["beta"])
+                            ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
                             ocr.set_ranges(0)
                     except Exception as exc:
                         debug.log(f"[NEW EVENTBUY] OCR init error: {exc}")
@@ -5007,12 +5009,12 @@ async def nodriver_ibon_main(ctx):
                             Captcha_Browser.set_domain(domain_name, captcha_url=captcha_url)
 
                         ocr = None
-                        if config_dict["ocr_captcha"]["enable"]:
+                        if captcha_config["enable"]:
                             try:
                                 import ddddocr
                                 ocr = create_universal_ocr(config_dict)
                                 if ocr is None:
-                                    ocr = ddddocr.DdddOcr(show_ad=False, beta=config_dict["ocr_captcha"]["beta"])
+                                    ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
                                     ocr.set_ranges(0)
                             except Exception as exc:
                                 debug.log(f"[IBON] OCR init error: {exc}")

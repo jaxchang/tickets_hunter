@@ -12,6 +12,7 @@ import time
 import traceback
 import urllib.parse
 import util
+import config_views
 from nodriver_common import (
     PageState,
     check_and_handle_pause,
@@ -357,8 +358,9 @@ async def nodriver_kham_captcha(tab, config_dict, ocr, model_name):
     if await check_and_handle_pause(config_dict):
         return False
 
-    away_from_keyboard_enable = config_dict["ocr_captcha"]["force_submit"]
-    if not config_dict["ocr_captcha"]["enable"]:
+    captcha_config = config_views.captcha_view(config_dict)
+    away_from_keyboard_enable = captcha_config["force_submit"]
+    if not captcha_config["enable"]:
         away_from_keyboard_enable = False
 
     # PS: need 'auto assign seat' feature to enable away_from_keyboard
