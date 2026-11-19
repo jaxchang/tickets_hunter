@@ -73,19 +73,18 @@ _state.declare_session("last_ticket_qty", "log-dedup tracker (last seen ticket q
 _state.declare_session("qty_selector_notfound", "quantity selector not-found flag for the ticket flow")
 _state.declare_session("submit_notfound", "submit button not-found flag for the ticket flow")
 _state.declare_session("last_captcha_type", "log-dedup tracker (last seen captcha type)")
-_state.declare_session("waiting_captcha_printed", "log-once flag; reset by the main function's page-change batch")
-_state.declare_session("captcha_filled_printed", "log-once flag; reset by the main function's page-change batch")
-_state.declare_session("ocr_retry_count", "OCR retry counter; reset by the main function's page-change batch")
-_state.declare_session("ocr_exhausted", "OCR exhaustion flag; reset by the main function's page-change batch")
+_state.declare_page("waiting_captcha_printed", "ticket_flow")
+_state.declare_page("captcha_filled_printed", "ticket_flow")
+_state.declare_page("ocr_retry_count", "ticket_flow")
+_state.declare_page("ocr_exhausted", "ticket_flow")
 _state.declare_session("captcha_attempted", "captcha attempt flag for the ticket flow")
 _state.declare_session("checkout_printed", "checkout log-once flag")
-_state.declare_session("next_button_clicked", "next-button flag; reset by the main function's page-change batch")
-_state.declare_session("refresh_retry_count", "sold-out refresh counter; reset by the main function's page-change batch")
-_state.declare_session("last_sold_out_logged", "sold-out log-once flag; reset by the main function's page-change batch")
-_state.declare_session("max_retry_logged", "max-retry log-once flag; reset by the main function's page-change batch")
-_state.declare_session("qty_sold_out_refreshing", "sold-out refresh flag; reset by the main function's page-change batch")
+_state.declare_page("next_button_clicked", "activity_detail")
+_state.declare_page("refresh_retry_count", "ticket_flow")
+_state.declare_page("last_sold_out_logged", "ticket_flow")
+_state.declare_page("qty_sold_out_refreshing", "ticket_flow")
 _state.declare_session("qty_fail_reason", "last quantity-selection failure reason")
-_state.declare_session("waiting_page_logged", "waiting page log-once flag; reset by the main function's page-change batch")
+_state.declare_page("waiting_page_logged", "waiting")
 _state.declare_session("ocr_instance", "OCR instance cached for the whole run")
 _state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
 _state.declare_session("order_submitted_url", "submit cooldown guard, keyed by URL by design")
@@ -1895,7 +1894,6 @@ async def nodriver_funone_main(ctx):
             # Sold-out refresh tracking
             "refresh_retry_count": 0,
             "last_sold_out_logged": False,
-            "max_retry_logged": False,
             "last_homepage_redirect_time": 0,
             # Cooldown guard: which page we last submitted an order on, and when.
             "order_submitted_url": "",
@@ -1930,20 +1928,8 @@ async def nodriver_funone_main(ctx):
     if _state.get("last_page_type") != page_type:
         debug.log(f"[FUNONE] Page type: {page_type}, URL: {url[:80]}...")
         _state["last_page_type"] = page_type
-        # Reset flags when page type changes
-        _state["waiting_page_logged"] = False
-        _state["next_button_clicked"] = False
-        # Reset sold-out refresh tracking
-        _state["refresh_retry_count"] = 0
-        _state["last_sold_out_logged"] = False
-        _state["max_retry_logged"] = False
-        # So the sold-out message is logged again on the next page.
-        _state["qty_sold_out_refreshing"] = False
-        # Reset OCR retry state
-        _state["ocr_retry_count"] = 0
-        _state["ocr_exhausted"] = False
-        _state["waiting_captcha_printed"] = False
-        _state["captcha_filled_printed"] = False
+        # Page-scoped flags are declared with declare_page and cleared by
+        # the _state.set_page call above (issue #52).
 
     # Close popups first
     await nodriver_funone_close_popup(tab)
