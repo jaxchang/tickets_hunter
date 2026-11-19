@@ -21,6 +21,7 @@ from zendriver import cdp
 
 import util
 from nodriver_common import (
+    PageState,
     asyncio_sleep_with_pause_check,
     check_and_handle_pause,
     nodriver_check_checkbox,
@@ -109,7 +110,29 @@ def _is_cart_success_message(dialog_text):
 
 
 # Module-level state (replaces global kham_dict)
-_state = {}
+# Module-level state. Keys declare their lifecycle here, in one place
+# (issue #14, ADR 0002): page keys would be cleared by PageState when
+# the main function moves to a different page; every current key is
+# session state for the reason stated.
+# Page ids for PageState: the main function classifies the current page
+# into one of these per pass. Declarations and set_page share the names
+# so a typo cannot silently disable a key's clearing.
+_PAGE_HOME = "home"
+_PAGE_SEAT = "seat"
+_PAGE_ACTIVITY_GROUP = "activity_group"
+_PAGE_ACTIVITY_GROUP_ITEM = "activity_group_item"
+_PAGE_UTK_TICKET = "utk_ticket"
+_PAGE_UTK_DATE_AREA = "utk_date_area"
+
+_state = PageState("kham")
+_state.declare_session("is_popup_checkout", "checkout popup flag for the order flow")
+_state.declare_session("played_sound_order", "sound plays once per purchase flow")
+_state.declare_session("shown_checkout_message", "checkout message shows once per run")
+_state.declare_session("udn_quick_buy_submitted", "UDN quick-buy submission flag")
+_state.declare_session("kham_seat_types_exhausted", "seat-type exhaustion flag for the seat selection flow")
+_state.declare_session("utk_rwd_cookie_hosts", "hosts that already received RWD cookies")
+_state.declare_session("utk_rwd_login_tries", "RWD login attempt counts per host")
+_state.declare_session("utk_rwd_notes", "RWD login notes already shown, remembered per run")
 
 
 # ====================================================================================
@@ -2003,6 +2026,24 @@ async def nodriver_kham_main(tab, url, config_dict, ocr):
     ]
     if is_rwd:
         home_url_list.append(normalize_utk_rwd_url(f"https://{domain_name}/").lower())
+
+    # Page state lifecycle (issue #14): classify the page once per pass
+    # from the normalized URL, mirroring the dispatch branches below.
+    if url.lower() in home_url_list:
+        _page_id = _PAGE_HOME
+    elif 'utk0205' in url.lower():
+        _page_id = _PAGE_SEAT
+    elif 'utk0201_040.aspx?agid=' in url.lower():
+        _page_id = _PAGE_ACTIVITY_GROUP
+    elif 'utk0201_041.aspx?agid=' in url.lower():
+        _page_id = _PAGE_ACTIVITY_GROUP_ITEM
+    elif 'utk0202' in url.lower() or 'utk0203' in url.lower():
+        _page_id = _PAGE_UTK_TICKET
+    elif 'utk0201' in url.lower():
+        _page_id = _PAGE_UTK_DATE_AREA
+    else:
+        _page_id = None
+    _state.set_page(_page_id)
 
     for each_url in home_url_list:
         if each_url == url.lower():
