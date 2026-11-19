@@ -16,7 +16,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from platforms import kham, kham_rwd, kham_seat, kham_shared  # noqa: E402
+from platforms import kham, kham_rwd, kham_seat, kham_shared, kham_udn_seat  # noqa: E402
 
 
 class KhamSurfaceTest(unittest.TestCase):
@@ -63,9 +63,15 @@ class KhamSurfaceTest(unittest.TestCase):
         self.assertEqual(kham.CONST_KHAM_RELOAD_SETTLE, kham_shared.CONST_KHAM_RELOAD_SETTLE)
         self.assertFalse(hasattr(kham_rwd, "CONST_UTK_RWD_EMPTY_SEAT_IMG"))
 
+    def test_udn_seat_cluster_lives_in_kham_udn_seat(self):
+        self.assertIs(kham.nodriver_udn_seat_main, kham_udn_seat.nodriver_udn_seat_main)
+        self.assertIs(
+            kham.nodriver_udn_seat_auto_select, kham_udn_seat.nodriver_udn_seat_auto_select
+        )
+
     def test_siblings_do_not_import_the_facade(self):
         src_dir = os.path.join(os.path.dirname(__file__), "..", "src", "platforms")
-        for module in ("kham_shared", "kham_rwd", "kham_seat"):
+        for module in ("kham_shared", "kham_rwd", "kham_seat", "kham_udn_seat"):
             with open(os.path.join(src_dir, module + ".py"), encoding="utf-8") as fh:
                 text = fh.read()
             self.assertNotIn("from platforms.kham import", text)
