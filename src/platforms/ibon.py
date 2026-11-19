@@ -4092,6 +4092,7 @@ async def nodriver_ibon_main(ctx):
     date_config = config_views.date_view(config_dict)
     area_config = config_views.area_view(config_dict)
     captcha_config = config_views.captcha_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
 
     # Lazy-register alert handler (no-op if already registered by goto_homepage)
     await register_ibon_alert_handler(tab, config_dict)
@@ -4600,7 +4601,7 @@ async def nodriver_ibon_main(ctx):
                             if click_ret:
                                 # Play "ticket" sound when attempting to enter checkout (found ticket)
                                 if not _state.get("played_sound_ticket", False):
-                                    if config_dict["advanced"]["play_sound"]["ticket"]:
+                                    if sound_config["ticket"]:
                                         play_sound_while_ordering(config_dict)
                                     _state["played_sound_ticket"] = True
                         except Exception as exc:
@@ -4715,7 +4716,7 @@ async def nodriver_ibon_main(ctx):
                             if click_ret:
                                 # Play "ticket" sound when attempting to enter checkout (found ticket)
                                 if not _state.get("played_sound_ticket", False):
-                                    if config_dict["advanced"]["play_sound"]["ticket"]:
+                                    if sound_config["ticket"]:
                                         play_sound_while_ordering(config_dict)
                                     _state["played_sound_ticket"] = True
                         except Exception as exc:
@@ -4882,7 +4883,7 @@ async def nodriver_ibon_main(ctx):
                     if click_ret:
                         # Play "ticket" sound when attempting to enter checkout (found ticket)
                         if not _state.get("played_sound_ticket", False):
-                            if config_dict["advanced"]["play_sound"]["ticket"]:
+                            if sound_config["ticket"]:
                                 play_sound_while_ordering(config_dict)
                             _state["played_sound_ticket"] = True
                         debug.log("[NEW EVENTBUY] Purchase button clicked successfully")
@@ -5034,7 +5035,7 @@ async def nodriver_ibon_main(ctx):
                             if click_ret:
                                 # Play "ticket" sound when attempting to enter checkout (found ticket)
                                 if not _state.get("played_sound_ticket", False):
-                                    if config_dict["advanced"]["play_sound"]["ticket"]:
+                                    if sound_config["ticket"]:
                                         play_sound_while_ordering(config_dict)
                                     _state["played_sound_ticket"] = True
                     else:
@@ -5092,7 +5093,7 @@ async def nodriver_ibon_main(ctx):
 
         # Play sound notification (only once)
         if not _state["played_sound_order"]:
-            if config_dict["advanced"]["play_sound"]["order"]:
+            if sound_config["order"]:
                 play_sound_while_ordering(config_dict)
             send_discord_notification(config_dict, "order", "iBon")
             send_telegram_notification(config_dict, "order", "iBon")

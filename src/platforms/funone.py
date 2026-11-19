@@ -1194,6 +1194,7 @@ async def nodriver_funone_captcha_handler(tab, config_dict):
     """
     debug = util.create_debug_logger(config_dict)
     captcha_config = config_views.captcha_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
     ocr_enabled = captcha_config["enable"]
 
     try:
@@ -1273,7 +1274,7 @@ async def nodriver_funone_captcha_handler(tab, config_dict):
 
         # Play sound once to alert user
         if not _state.get("played_sound_ticket", False):
-            if config_dict["advanced"]["play_sound"]["ticket"]:
+            if sound_config["ticket"]:
                 play_sound_while_ordering(config_dict)
             _state["played_sound_ticket"] = True
 
@@ -1905,6 +1906,7 @@ async def nodriver_funone_main(ctx):
         })
 
     debug = util.create_debug_logger(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
 
     # Determine page type
     page_type = "UNKNOWN"
@@ -2145,7 +2147,7 @@ async def nodriver_funone_main(ctx):
                     # Just need to fill captcha once, then stop.
                     # User has 10 minutes to complete payment.
                     if not _state.get("played_sound_order", False):
-                        if config_dict["advanced"]["play_sound"]["order"]:
+                        if sound_config["order"]:
                             play_sound_while_ordering(config_dict)
                         send_discord_notification(config_dict, "order", "FunOne")
                         send_telegram_notification(config_dict, "order", "FunOne")

@@ -1216,6 +1216,7 @@ async def nodriver_kham_main(ctx):
     area_config = config_views.area_view(config_dict)
     ticket_number_value = config_views.ticket_number(config_dict)
     captcha_config = config_views.captcha_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
 
     if is_rwd and await nodriver_utk_rwd_ensure_login(tab, url, config_dict, ocr):
         return tab
@@ -2725,7 +2726,7 @@ async def nodriver_kham_main(ctx):
 
         # Play sound notification (only once)
         if not _state["played_sound_order"]:
-            if config_dict["advanced"]["play_sound"]["order"]:
+            if sound_config["order"]:
                 play_sound_while_ordering(config_dict)
             send_discord_notification(config_dict, "order", "KHAM")
             send_telegram_notification(config_dict, "order", "KHAM")

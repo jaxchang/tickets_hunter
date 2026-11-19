@@ -313,5 +313,29 @@ class AnswerViewTest(unittest.TestCase):
         self.assertEqual(config_views.answer_view(config)["auto_guess_options"], True)
 
 
+class PlaySoundViewTest(unittest.TestCase):
+    def test_full_config_maps_each_field(self):
+        config = {"advanced": {"play_sound": {"ticket": False, "order": True}}}
+        view = config_views.play_sound_view(config)
+        self.assertEqual(view, {"ticket": False, "order": True})
+
+    def test_missing_section_yields_canonical_defaults(self):
+        self.assertEqual(config_views.play_sound_view({}), {"ticket": True, "order": True})
+        self.assertEqual(
+            config_views.play_sound_view({"advanced": {}}), {"ticket": True, "order": True}
+        )
+
+    def test_missing_key_defaults_to_true(self):
+        config = {"advanced": {"play_sound": {"ticket": False}}}
+        view = config_views.play_sound_view(config)
+        self.assertEqual(view, {"ticket": False, "order": True})
+
+    def test_view_is_computed_fresh_from_current_dict(self):
+        config = {"advanced": {"play_sound": {"order": True}}}
+        self.assertEqual(config_views.play_sound_view(config)["order"], True)
+        config["advanced"]["play_sound"]["order"] = False
+        self.assertEqual(config_views.play_sound_view(config)["order"], False)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -24,7 +24,7 @@ caching or hidden state.
 
 import random
 
-__all__ = ["date_view", "reload_interval", "area_view", "ticket_number", "captcha_view", "answer_view"]
+__all__ = ["date_view", "reload_interval", "area_view", "ticket_number", "captcha_view", "answer_view", "play_sound_view"]
 
 
 def date_view(config_dict):
@@ -151,6 +151,28 @@ def answer_view(config_dict):
         "auto_guess_options": advanced.get("auto_guess_options", False),
         "user_guess_string": advanced.get("user_guess_string", ""),
         "discount_code": advanced.get("discount_code", ""),
+    }
+
+
+def play_sound_view(config_dict):
+    """The sound gates' config bundle (issue #64).
+
+    - ``ticket``: ``advanced.play_sound.ticket``; True when missing
+      (the settings default).
+    - ``order``: ``advanced.play_sound.order``; True when missing.
+
+    Call sites keep deciding whether to call
+    ``play_sound_while_ordering`` themselves; the view only replaces
+    the gate read (no centralization, per the issue #64 consensus).
+    The ``filename`` read inside ``play_sound_while_ordering`` is
+    the callee's own business and stays there. Fansigo's
+    platform-only ``advanced.play_ticket_sound`` key is not part of
+    this view.
+    """
+    play_sound = (config_dict.get("advanced") or {}).get("play_sound") or {}
+    return {
+        "ticket": play_sound.get("ticket", True),
+        "order": play_sound.get("order", True),
     }
 
 

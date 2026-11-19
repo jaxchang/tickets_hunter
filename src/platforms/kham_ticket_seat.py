@@ -1235,6 +1235,7 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
 
     # Step 3: Handle captcha (reuse KHAM OCR)
     captcha_config = config_views.captcha_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
     is_captcha_sent = False
     if is_seat_assigned and captcha_config["enable"]:
         try:
@@ -1319,7 +1320,7 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
                     debug.log("[TICKET SUBMIT] No dialog appeared within 5 seconds")
 
                 # Play sound if enabled
-                if config_dict["advanced"]["play_sound"]["order"]:
+                if sound_config["order"]:
                     play_sound_while_ordering(config_dict)
 
         except Exception as exc:
@@ -1328,7 +1329,7 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
             try:
                 await tab.evaluate('addShoppingCart1();')
                 is_submit_success = True
-                if config_dict["advanced"]["play_sound"]["order"]:
+                if sound_config["order"]:
                     play_sound_while_ordering(config_dict)
                 debug.log("[TICKET SUBMIT] Submitted via fallback method")
             except Exception as exc2:
@@ -1398,7 +1399,7 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
                             debug.log("[TICKET SUBMIT RETRY] No dialog appeared within 5 seconds")
 
                         # Play sound
-                        if config_dict["advanced"]["play_sound"]["order"]:
+                        if sound_config["order"]:
                             play_sound_while_ordering(config_dict)
 
                 except Exception as exc:
