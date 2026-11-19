@@ -17,6 +17,7 @@ from zendriver.core.keys import SpecialKeys
 import util
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     nodriver_check_modal_dialog_popup,
     play_sound_while_ordering,
@@ -27,6 +28,7 @@ from nodriver_common import (
 )
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "HKTICKETING_CONTENT_RETRY_STRING_LIST",
     "HKTICKETING_REDIRECT_URL_LIST",
     "HKTICKETING_CHECK_URL_LIST",
@@ -2751,3 +2753,18 @@ async def nodriver_hkticketing_main(tab, url, config_dict):
 
     return tab
 
+
+# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
+# keeps its pre-interface signature until its migration batch; the
+# dispatcher assigned its tab return, and the adapter passes it through.
+async def _legacy_entry(ctx):
+    return await nodriver_hkticketing_main(ctx.tab, ctx.url, ctx.config_dict)
+
+
+PLATFORM_ENTRIES = [
+    PlatformEntry(
+        "hkticketing",
+        _legacy_entry,
+        patterns=("hkticketing.com", "galaxymacau.com", "ticketek.com"),
+    ),
+]

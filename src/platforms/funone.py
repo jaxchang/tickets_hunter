@@ -15,6 +15,7 @@ except Exception:
 import util
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     check_and_handle_pause,
     nodriver_current_url_safe,
@@ -25,6 +26,7 @@ from nodriver_common import (
 
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "nodriver_funone_inject_cookie",
     "nodriver_funone_check_login_status",
     "nodriver_funone_verify_login",
@@ -2198,3 +2200,14 @@ async def nodriver_funone_main(tab, url, config_dict):
 
     return tab
 
+
+# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
+# keeps its pre-interface signature until its migration batch; the
+# dispatcher assigned its tab return, and the adapter passes it through.
+async def _legacy_entry(ctx):
+    return await nodriver_funone_main(ctx.tab, ctx.url, ctx.config_dict)
+
+
+PLATFORM_ENTRIES = [
+    PlatformEntry("funone", _legacy_entry, patterns=("tickets.funone.io",)),
+]

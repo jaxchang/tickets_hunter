@@ -10,6 +10,7 @@ import time
 import util
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     check_and_handle_pause,
     handle_cloudflare_challenge,
@@ -22,6 +23,7 @@ from nodriver_common import (
 
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "nodriver_cityline_auto_retry_access",
     "nodriver_cityline_login",
     "nodriver_cityline_date_auto_select",
@@ -1001,7 +1003,10 @@ async def nodriver_cityline_clean_ads(tab):
 
     return is_ads_removed
 
-async def nodriver_cityline_main(tab, url, config_dict):
+async def nodriver_cityline_main(ctx):
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
 
     if not _state:
         _state.update({
@@ -1183,3 +1188,13 @@ async def nodriver_cityline_main(tab, url, config_dict):
         _state["played_sound_order"] = False
 
     return tab
+
+
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
+PLATFORM_ENTRIES = [
+    PlatformEntry(
+        "cityline",
+        nodriver_cityline_main,
+        patterns=("cityline.com",),
+    ),
+]

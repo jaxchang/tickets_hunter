@@ -14,6 +14,7 @@ from zendriver import cdp
 import util
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     check_and_handle_pause,
     evaluate_with_pause_check,
@@ -27,6 +28,7 @@ from nodriver_common import (
 
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "nodriver_ticketplus_detect_layout_style",
     "nodriver_ticketplus_account_sign_in",
     "nodriver_ticketplus_is_signin",
@@ -68,7 +70,8 @@ _state.declare_session("start_time", "purchase-flow timing for the whole run")
 _state.declare_session("done_time", "purchase-flow timing for the whole run")
 _state.declare_session("elapsed_time", "purchase-flow timing for the whole run")
 _state.declare_session("signin_form_filled", "sign-in form is filled once per run")
-_state.declare_session("purchase_completed", "dispatcher reads it to stop after purchase")
+_state.declare_session("purchase_completed", "the purchase latch reads it to stop after purchase")
+_state.declare_session("purchase_done", "purchase latch; set by _update_purchase_latch and checked at main entry (moved from the dispatcher, issue #34)")
 _state.declare_session("order_page_visited", "queue/order visit memory across pages")
 
 # After the next button is clicked the site does one of three things: navigate to
@@ -217,11 +220,30 @@ def _ticketplus_filter_excluded(config_dict, items, text_of):
 
 
 def _get_status():
-    """Return current ticketplus status for main loop (Approach B)."""
+    """Return current ticketplus status for the purchase latch (Approach B)."""
     return {
         "purchase_completed": _state.get("purchase_completed", False),
         "is_ticket_assigned": _state.get("is_ticket_assigned", False),
     }
+
+
+def _update_purchase_latch(url):
+    """Set the purchase_done latch from the current status (issue #34).
+
+    The dispatcher used to apply these exact conditions (and print
+    these exact messages) to the status dict the main returned; the
+    latch now lives in this module's own state and the main checks it
+    at entry, so later passes return immediately.
+    """
+    if _state.get("purchase_done", False):
+        return
+    status = _get_status()
+    if status.get("purchase_completed", False):
+        print("[SUCCESS] TicketPlus purchase completed")
+        _state["purchase_done"] = True
+    elif status.get("is_ticket_assigned", False) and '/confirm/' in url.lower():
+        print("[SUCCESS] TicketPlus on confirmation page, booking successful")
+        _state["purchase_done"] = True
 
 
 def _ticketplus_path_segment_count(url):
@@ -2199,14 +2221,25 @@ async def nodriver_ticketplus_order_exclusive_code(tab, config_dict, fail_list):
         return False, fail_list, False
 
 
-async def nodriver_ticketplus_main(tab, url, config_dict, ocr, Captcha_Browser):
-    """TicketPlus main entry point.
+async def nodriver_ticketplus_main(ctx):
+    """TicketPlus main entry point (platform interface, issue #34).
 
-    Returns:
-        dict: {"purchase_completed": bool, "is_ticket_assigned": bool}
+    Returns None (keep the current tab). Purchase completion is tracked
+    by this module's own purchase_done latch instead of a status dict
+    for the dispatcher.
     """
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+    ocr = ctx.ocr
+    Captcha_Browser = ctx.captcha_browser
+
+    if _state.get("purchase_done", False):
+        return None
+
     if await check_and_handle_pause(config_dict):
-        return _get_status()
+        _update_purchase_latch(url)
+        return None
 
     debug = util.create_debug_logger(config_dict)
 
@@ -2310,10 +2343,12 @@ async def nodriver_ticketplus_main(tab, url, config_dict, ocr, Captcha_Browser):
                 except Exception as reload_exc:
                     debug.log(f"[ORDER FAIL] Reload failed: {reload_exc}")
                 _state["order_page_visited"] = False
-                return _get_status()
+                _update_purchase_latch(url)
+                return None
             elif is_order_fail_handled is None:
                 debug.log("[ORDER FAIL][DEGRADED] Detection unavailable, skipping order submission this cycle")
-                return _get_status()
+                _update_purchase_latch(url)
+                return None
 
             await nodriver_ticketplus_order(tab, config_dict, ocr, Captcha_Browser)
 
@@ -2359,4 +2394,15 @@ async def nodriver_ticketplus_main(tab, url, config_dict, ocr, Captcha_Browser):
     else:
         _state["is_popup_confirm"] = False
 
-    return _get_status()
+    _update_purchase_latch(url)
+    return None
+
+
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
+PLATFORM_ENTRIES = [
+    PlatformEntry(
+        "ticketplus",
+        nodriver_ticketplus_main,
+        patterns=("ticketplus.com",),
+    ),
+]

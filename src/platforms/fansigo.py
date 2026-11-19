@@ -12,7 +12,7 @@ from zendriver import cdp
 
 import util
 import config_views
-from nodriver_common import PageState, check_and_handle_pause, play_sound_while_ordering, sleep_with_pause_check
+from nodriver_common import PageState, check_and_handle_pause, play_sound_while_ordering, sleep_with_pause_check, PlatformEntry
 from nodriver_common import CONST_FROM_TOP_TO_BOTTOM
 
 # =============================================================================
@@ -22,6 +22,7 @@ from nodriver_common import CONST_FROM_TOP_TO_BOTTOM
 # =============================================================================
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "FANSIGO_URL_PATTERNS",
     "FANSIGO_COGNITO_DOMAIN",
     "is_fansigo_url",
@@ -1055,3 +1056,21 @@ async def nodriver_fansigo_main(tab, url, config_dict):
         return tab
 
     return tab
+
+# Platform interface (issue #34, ADR 0005): legacy adapters -- the mains
+# keep their pre-interface signatures until their migration batch. The
+# dispatcher assigned the main's tab return (passed through) and
+# discarded the sign-in helper's bool return (discarded here too).
+async def _legacy_entry(ctx):
+    return await nodriver_fansigo_main(ctx.tab, ctx.url, ctx.config_dict)
+
+
+async def _legacy_signin_entry(ctx):
+    await nodriver_fansigo_signin(ctx.tab, ctx.url, ctx.config_dict)
+    return None
+
+
+PLATFORM_ENTRIES = [
+    PlatformEntry("fansigo", _legacy_entry, patterns=("go.fansi.me",)),
+    PlatformEntry("fansigo_signin", _legacy_signin_entry, patterns=(FANSIGO_COGNITO_DOMAIN,)),
+]

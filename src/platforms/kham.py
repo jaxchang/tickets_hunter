@@ -23,6 +23,7 @@ import util
 import date_selection
 import config_views
 from nodriver_common import (
+    PlatformEntry,
     PageState,
     asyncio_sleep_with_pause_check,
     check_and_handle_pause,
@@ -40,6 +41,7 @@ from nodriver_common import (
 )
 
 __all__ = [
+    "PLATFORM_ENTRIES",
     "nodriver_kham_login",
     "nodriver_kham_go_buy_redirect",
     "nodriver_kham_check_realname_dialog",
@@ -6407,3 +6409,21 @@ async def nodriver_ticket_switch_to_auto_seat(tab):
 
     return is_switch_to_auto_seat
 
+
+# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
+# keeps its pre-interface signature until its migration batch. The
+# dispatcher used to assign its return unconditionally (including the
+# pause path's False), so the adapter passes the return through
+# verbatim; fixing the False case is that batch's flagged change.
+async def _legacy_entry(ctx):
+    return await nodriver_kham_main(ctx.tab, ctx.url, ctx.config_dict, ctx.ocr)
+
+
+PLATFORM_ENTRIES = [
+    PlatformEntry(
+        "kham",
+        _legacy_entry,
+        patterns=("kham.com.tw", "ticket.com.tw", "tickets.udnfunlife.com"),
+        match_fn=is_utk_rwd_url,
+    ),
+]
