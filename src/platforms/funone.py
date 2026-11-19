@@ -1193,7 +1193,8 @@ async def nodriver_funone_captcha_handler(tab, config_dict):
         bool: True if captcha is filled or no captcha exists
     """
     debug = util.create_debug_logger(config_dict)
-    ocr_enabled = config_dict.get("ocr_captcha", {}).get("enable", False)
+    captcha_config = config_views.captcha_view(config_dict)
+    ocr_enabled = captcha_config["enable"]
 
     try:
         # Check for captcha image and input

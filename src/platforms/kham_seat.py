@@ -1026,8 +1026,9 @@ async def nodriver_kham_seat_main(tab, config_dict, ocr, domain_name):
             clear_kham_seat_reload_tracker(tab.target.url)
 
     # Step 3: Handle captcha (reuse KHAM OCR)
+    captcha_config = config_views.captcha_view(config_dict)
     is_captcha_sent = False
-    if is_seat_assigned and config_dict["ocr_captcha"]["enable"]:
+    if is_seat_assigned and captcha_config["enable"]:
         try:
             # Find captcha input field
             captcha_input = await tab.query_selector('input#CHK')
@@ -1043,7 +1044,7 @@ async def nodriver_kham_seat_main(tab, config_dict, ocr, domain_name):
 
     # Step 4: Submit order with improved dialog handling and URL tracking
     is_submit_success = False
-    if is_seat_assigned and (not config_dict["ocr_captcha"]["enable"] or is_captcha_sent):
+    if is_seat_assigned and (not captcha_config["enable"] or is_captcha_sent):
         try:
             # Baseline for the transition check below, taken before the click:
             # kham often redirects to UTK0206 while the reply dialog is still

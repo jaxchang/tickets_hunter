@@ -31,6 +31,7 @@ from urllib3.exceptions import InsecureRequestWarning
 import urllib.parse
 
 import util
+import config_views
 import settings
 from NonBrowser import NonBrowser
 
@@ -842,10 +843,11 @@ async def main(args):
     ocr = None
     Captcha_Browser = None
     try:
-        if config_dict["ocr_captcha"]["enable"]:
+        captcha_config = config_views.captcha_view(config_dict)
+        if captcha_config["enable"]:
             ocr = create_ocr_for_platform(config_dict)
             if ocr is None:
-                ocr = ddddocr.DdddOcr(show_ad=False, beta=config_dict["ocr_captcha"]["beta"])
+                ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
                 ocr.set_ranges(1)
             Captcha_Browser = NonBrowser()
             if len(config_dict["accounts"]["tixcraft_sid"]) > 1:

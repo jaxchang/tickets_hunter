@@ -217,5 +217,49 @@ class TicketNumberViewTest(unittest.TestCase):
         self.assertEqual(config_views.ticket_number(config), 3)
 
 
+class CaptchaViewTest(unittest.TestCase):
+    def test_full_config_maps_each_field(self):
+        config = {
+            "ocr_captcha": {
+                "enable": False,
+                "beta": False,
+                "force_submit": False,
+                "image_source": "non_browser",
+            }
+        }
+        view = config_views.captcha_view(config)
+        self.assertEqual(
+            view,
+            {
+                "enable": False,
+                "beta": False,
+                "force_submit": False,
+                "image_source": "non_browser",
+            },
+        )
+
+    def test_missing_section_yields_canonical_defaults(self):
+        view = config_views.captcha_view({})
+        self.assertEqual(
+            view,
+            {
+                "enable": True,
+                "beta": True,
+                "force_submit": True,
+                "image_source": "canvas",
+            },
+        )
+
+    def test_empty_image_source_falls_back_to_canvas(self):
+        config = {"ocr_captcha": {"image_source": ""}}
+        self.assertEqual(config_views.captcha_view(config)["image_source"], "canvas")
+
+    def test_view_is_computed_fresh_from_current_dict(self):
+        config = {"ocr_captcha": {"enable": True}}
+        self.assertEqual(config_views.captcha_view(config)["enable"], True)
+        config["ocr_captcha"]["enable"] = False
+        self.assertEqual(config_views.captcha_view(config)["enable"], False)
+
+
 if __name__ == "__main__":
     unittest.main()
