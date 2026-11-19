@@ -83,7 +83,7 @@ async def nodriver_xxx_main(tab, url, config_dict):
         })
 ```
 
-已遷移的模組（tixcraft、TicketPlus）改用 `nodriver_common.PageState`（dict 相容）：
+已遷移的模組（tixcraft、TicketPlus、kktix、funone）改用 `nodriver_common.PageState`（dict 相容）：
 在模組頂部以 `declare_page` / `declare_session` 集中宣告每個鍵的生命週期，
 主函式每輪以 `set_page(page_id)` 宣告目前頁面，換頁時頁面鍵自動清除（見 ADR 0002）。
 
