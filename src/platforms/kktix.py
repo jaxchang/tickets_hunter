@@ -18,6 +18,7 @@ import webbrowser
 from zendriver import cdp
 
 import util
+import date_selection
 from nodriver_common import (
     PageState,
     cdp_click_at,
@@ -1399,9 +1400,11 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
 
     debug.log(f"[KKTIX DATE] Found {len(session_list)} sessions on page")
 
-    # Extract session info (text + button element)
-    formated_session_list = []
-    formated_session_list_text = []
+    # Extract rows for the shared date-selection core (issue #22,
+    # ADR 0003): the date text, the buy button as the opaque payload,
+    # and availability = date text present and button present. Keyword
+    # exclude and priority matching live in the core now.
+    rows = []
 
     for session_item in session_list:
         try:
@@ -1429,120 +1432,43 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
             # Check if button exists
             button_elem = await session_item.query_selector('div.content > a.btn-point')
 
+            rows.append({
+                "text": date_text or "",
+                "available": bool(date_text and button_elem),
+                "payload": button_elem,
+            })
             if date_text and button_elem:
-                # Check exclude keywords
-                if not util.reset_row_text_if_match_keyword_exclude(config_dict, date_text):
-                    formated_session_list.append(button_elem)
-                    formated_session_list_text.append(date_text)
-                    debug.log(f"[KKTIX DATE] Available session: {date_text}")
+                debug.log(f"[KKTIX DATE] Available session: {date_text}")
         except Exception as exc:
             debug.log(f"[KKTIX DATE] Error processing session: {exc}")
             continue
 
-    if len(formated_session_list) == 0:
-        debug.log("[KKTIX DATE] No available sessions found after filtering")
+    config_view = {
+        "keyword": date_keyword,
+        "mode": auto_select_mode,
+        "keyword_exclude": config_dict.get("keyword_exclude"),
+        "fallback": date_auto_fallback,
+    }
+    chosen_index = date_selection.select_date(rows, config_view)
+
+    if chosen_index is None:
+        debug.log("[KKTIX DATE] No session selected")
         return False
 
-    # T004-T008: NEW LOGIC - Early return pattern (Feature 003)
-    # Keyword priority matching: first match wins and stops immediately
-    matched_blocks = None
-
-    if not date_keyword:
-        matched_blocks = formated_session_list
-        debug.log(f"[KKTIX DATE KEYWORD] No keyword specified, using all {len(formated_session_list)} sessions")
-    else:
-        # NEW: Early return pattern - iterate keywords in order
-        matched_blocks = []
-        target_row_found = False
-        keyword_matched_index = -1
-
-        try:
-            import json
-            import re
-            keyword_array = json.loads("[" + date_keyword + "]")
-
-            # T005: Start checking keywords log
-            debug.log(f"[KKTIX DATE KEYWORD] Start checking keywords in order: {keyword_array}")
-            debug.log(f"[KKTIX DATE KEYWORD] Total keyword groups: {len(keyword_array)}")
-            debug.log(f"[KKTIX DATE KEYWORD] Checking against {len(formated_session_list_text)} available sessions...")
-
-            # NEW: Iterate keywords in priority order (early return)
-            for keyword_index, keyword_item_set in enumerate(keyword_array):
-                debug.log(f"[KKTIX DATE KEYWORD] Checking keyword #{keyword_index + 1}: {keyword_item_set}")
-
-                # Check all rows for this keyword
-                for i, session_text in enumerate(formated_session_list_text):
-                    normalized_session_text = re.sub(r'\s+', ' ', session_text)
-                    is_match = False
-
-                    if isinstance(keyword_item_set, str):
-                        # OR logic: single keyword
-                        normalized_keyword = re.sub(r'\s+', ' ', keyword_item_set)
-                        is_match = normalized_keyword in normalized_session_text
-                    elif isinstance(keyword_item_set, list):
-                        # AND logic: all keywords must match
-                        normalized_keywords = [re.sub(r'\s+', ' ', kw) for kw in keyword_item_set]
-                        match_results = [kw in normalized_session_text for kw in normalized_keywords]
-                        is_match = all(match_results)
-
-                    if is_match:
-                        # T006: Keyword matched log - IMMEDIATELY select and stop
-                        matched_blocks = [formated_session_list[i]]
-                        target_row_found = True
-                        keyword_matched_index = keyword_index
-                        debug.log(f"[KKTIX DATE KEYWORD] Keyword #{keyword_index + 1} matched: '{keyword_item_set}'")
-                        debug.log(f"[KKTIX DATE SELECT] Selected session: {session_text[:80]} (keyword match)")
-                        break
-
-                if target_row_found:
-                    # EARLY RETURN: Stop checking further keywords
-                    break
-
-            # T007: All keywords failed log
-            if not target_row_found:
-                debug.log(f"[KKTIX DATE KEYWORD] All keywords failed to match")
-
-        except Exception as e:
-            debug.log(f"[KKTIX DATE KEYWORD] Parsing error: {e}")
-            # On error, use mode selection
-            matched_blocks = []
-
-    if debug.enabled and (not matched_blocks or len(matched_blocks) == 0):
-        debug.log(f"[KKTIX DATE KEYWORD] No sessions matched any keywords")
-
-    # T018-T020: NEW - Conditional fallback based on date_auto_fallback switch
-    if matched_blocks is not None and len(matched_blocks) == 0 and date_keyword and len(formated_session_list) > 0:
-        if date_auto_fallback:
-            # T018: Fallback enabled - use auto_select_mode
-            debug.log(f"[KKTIX DATE FALLBACK] date_auto_fallback=true, triggering auto fallback")
-            debug.log(f"[KKTIX DATE FALLBACK] Selecting available session based on date_select_order='{auto_select_mode}'")
-            matched_blocks = formated_session_list
-        else:
-            # T019: Fallback disabled - strict mode (no selection, but continue to check for reload)
-            debug.log(f"[KKTIX DATE FALLBACK] date_auto_fallback=false, fallback is disabled")
-            debug.log(f"[KKTIX DATE SELECT] No date selected, will check if reload needed")
-            # Don't return - let the function continue to check if selection succeeded
-            # matched_blocks remains empty (no selection will be made)
-
-    # Select target using auto_select_mode
-    target_button = util.get_target_item_from_matched_list(matched_blocks, auto_select_mode)
-
-    if debug.enabled:
-        if not matched_blocks or len(matched_blocks) == 0:
-            debug.log(f"[KKTIX DATE SELECT] No target selected (matched_blocks is empty)")
+    target_button = rows[chosen_index]["payload"]
 
     # Click selected button
     is_date_clicked = False
-    if target_button:
-        try:
-            debug.log("[KKTIX DATE SELECT] Clicking selected session button...")
-            await target_button.click()
-            is_date_clicked = True
-            debug.log(f"[KKTIX DATE SELECT] Session selection completed successfully")
-        except Exception as exc:
-            debug.log(f"[KKTIX DATE SELECT] Click error: {exc}")
+    try:
+        debug.log("[KKTIX DATE SELECT] Clicking selected session button...")
+        await target_button.click()
+        is_date_clicked = True
+        debug.log(f"[KKTIX DATE SELECT] Session selection completed successfully")
+    except Exception as exc:
+        debug.log(f"[KKTIX DATE SELECT] Click error: {exc}")
 
     return is_date_clicked
+
 
 #   : This is for case-2 next button.
 async def nodriver_kktix_events_press_next_button(tab, config_dict=None):
