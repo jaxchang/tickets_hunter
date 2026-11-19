@@ -18,6 +18,7 @@ from zendriver import cdp
 
 import util
 from nodriver_common import (
+    PageState,
     asyncio_sleep_with_pause_check,
     check_and_handle_pause,
     create_universal_ocr,
@@ -77,8 +78,39 @@ __all__ = [
     "nodriver_ibon_main",
 ]
 
-# Module-level state (replaces global ibon_dict)
-_state = {}
+# Module-level state (replaces global ibon_dict). Keys declare their
+# lifecycle here, in one place (issue #13, ADR 0002): page keys would be
+# cleared by PageState when the main function moves to a different page;
+# every current key is session state for the reason stated.
+# Page ids for PageState: the main function classifies the current page
+# into one of these per pass. Declarations and set_page share the names
+# so a typo cannot silently disable a key's clearing.
+_PAGE_QUEUE = "queue"
+_PAGE_LOGIN = "login"
+_PAGE_HOME = "home"
+_PAGE_TOUR_EVENT = "tour_event"
+_PAGE_TOUR_OPTIONS = "tour_options"
+_PAGE_TOUR_CHECKOUT = "tour_checkout"
+_PAGE_ACTIVITY_DETAIL = "activity_detail"
+_PAGE_UTK_DATE_AREA = "utk_date_area"
+_PAGE_UTK_TICKET = "utk_ticket"
+_PAGE_VAILDATE = "vaildate"
+_PAGE_EVENTBUY = "eventbuy"
+_PAGE_EVENT = "event"
+_PAGE_ERROR = "error"
+
+_state = PageState("ibon")
+_state.declare_session("fail_list", "failure memory for the ticket flow")
+_state.declare_session("is_popup_checkout", "checkout popup flag for the order flow")
+_state.declare_session("played_sound_ticket", "sound plays once per purchase flow")
+_state.declare_session("played_sound_order", "sound plays once per purchase flow")
+_state.declare_session("queue_it_enter_time", "queue wait timing across pages")
+_state.declare_session("shown_checkout_message", "checkout message shows once per run")
+_state.declare_session("alert_handler_registered", "alert handler registers once per process")
+_state.declare_session("livemap_failed_areas", "livemap retry memory across rounds")
+_state.declare_session("livemap_last_attempt", "livemap retry memory across rounds")
+_state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
+_state.declare_session("vaildate_submitted_url", "submitted validation URL guard, keyed by URL by design")
 
 
 def _ensure_state():
@@ -3920,6 +3952,42 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
 
     # Queue-IT detection: track enter/exit time for diagnostics
     url_lower = url.lower()
+
+    # Page state lifecycle (issue #13): classify the page once per pass,
+    # mirroring the dispatch branches below.
+    if 'queue-it.net' in url_lower:
+        _page_id = _PAGE_QUEUE
+    elif 'huiwan.ibon.com.tw' in url_lower and 'loginhuiwan' in url_lower:
+        _page_id = _PAGE_LOGIN
+    elif url_lower.rstrip('/') in ('https://ticket.ibon.com.tw', 'https://ticket.ibon.com.tw/index/entertainment'):
+        _page_id = _PAGE_HOME
+    elif 'tour.ibon.com.tw' in url_lower and '/event/' in url_lower:
+        if '/checkout' in url_lower:
+            _page_id = _PAGE_TOUR_CHECKOUT
+        elif '/options' in url_lower:
+            _page_id = _PAGE_TOUR_OPTIONS
+        elif len(url.split('/')) == 5:
+            _page_id = _PAGE_TOUR_EVENT
+        else:
+            _page_id = None
+    elif '/activityinfo/details/' in url_lower:
+        _page_id = _PAGE_ACTIVITY_DETAIL
+    elif '/utk02/utk0202_' in url_lower:
+        _page_id = _PAGE_UTK_TICKET
+    elif '/utk02/utk0201_' in url_lower:
+        _page_id = _PAGE_UTK_DATE_AREA
+    elif 'ticket.ibon.com.tw' in url_lower and '/vaildate/' in url_lower:
+        _page_id = _PAGE_VAILDATE
+    elif 'ticket.ibon.com.tw' in url_lower and '/eventbuy/' in url_lower:
+        _page_id = _PAGE_EVENTBUY
+    elif 'ticket.ibon.com.tw' in url_lower and '/event/' in url_lower:
+        _page_id = _PAGE_EVENT
+    elif 'ibon.com.tw/error.html?' in url_lower:
+        _page_id = _PAGE_ERROR
+    else:
+        _page_id = None
+    _state.set_page(_page_id)
+
     if 'queue-it.net' in url_lower:
         if _state.get("queue_it_enter_time") is None:
             import time as _time
