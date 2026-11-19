@@ -656,7 +656,7 @@ async def nodriver_cityline_ticket_number_auto_select(tab, config_dict):
     Reference: spec.md FR-005, cityline-interface.md
     """
     debug = util.create_debug_logger(config_dict)
-    ticket_number = config_dict.get("ticket_number", 1)
+    ticket_number = config_views.ticket_number(config_dict, default=1)
 
     is_ticket_number_assigned = False
 

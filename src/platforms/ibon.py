@@ -1015,7 +1015,7 @@ async def nodriver_ibon_event_area_auto_select(tab, config_dict, area_keyword_it
     area_config = config_views.area_view(config_dict)
     auto_select_mode = area_config["mode"]
     area_auto_fallback = area_config["fallback"]
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
 
     is_price_assign_by_bot = False
     is_need_refresh = False
@@ -1467,7 +1467,7 @@ async def nodriver_ibon_area_auto_select(tab, config_dict, area_keyword_item="")
     area_config = config_views.area_view(config_dict)
     auto_select_mode = area_config["mode"]
     area_auto_fallback = area_config["fallback"]
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
 
     is_price_assign_by_bot = False
     is_need_refresh = False
@@ -2039,7 +2039,7 @@ async def nodriver_ibon_ticket_number_auto_select(tab, config_dict):
         return False
 
     debug = util.create_debug_logger(config_dict)
-    ticket_number = str(config_dict.get("ticket_number", 2))
+    ticket_number = str(config_views.ticket_number(config_dict))
     is_ticket_number_assigned = False
 
     # Get keyword settings for ticket type matching
@@ -3698,7 +3698,7 @@ async def nodriver_tour_ibon_options(tab, config_dict):
 
         # Step 1: Select ticket quantity from <select> element
         # Support multiple ticket types with area_keyword matching
-        ticket_number = config_dict.get("ticket_number", 2)
+        ticket_number = config_views.ticket_number(config_dict)
 
         # Get area keyword for ticket type matching
         area_keyword = ""
@@ -4014,7 +4014,7 @@ def ibon_livemap_select_area(livemap_areas, config_dict, area_keyword_item, debu
 
     Returns selected area dict or None.
     """
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
     area_config = config_views.area_view(config_dict)
     auto_select_mode = area_config["mode"]
 

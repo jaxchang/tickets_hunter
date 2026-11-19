@@ -973,7 +973,7 @@ async def nodriver_kham_area_auto_select(tab, domain_name, config_dict, area_key
             # Check ticket number availability
             final_rows = []
             final_rows_text = []
-            ticket_number = config_dict["ticket_number"]
+            ticket_number = config_views.ticket_number(config_dict)
             for i, row_text in enumerate(filtered_rows_text):
                 if 'udnfunlife' not in domain_name:
                     if ticket_number > 1:
@@ -1213,6 +1213,7 @@ async def nodriver_kham_main(ctx):
     domain_name = url.split('/')[2]
     debug = util.create_debug_logger(config_dict)
     area_config = config_views.area_view(config_dict)
+    ticket_number_value = config_views.ticket_number(config_dict)
 
     if is_rwd and await nodriver_utk_rwd_ensure_login(tab, url, config_dict, ocr):
         return tab
@@ -1503,7 +1504,7 @@ async def nodriver_kham_main(ctx):
 
                 if is_captcha_sent:
                     # Set ticket number
-                    ticket_number = str(config_dict["ticket_number"])
+                    ticket_number = str(config_views.ticket_number(config_dict))
                     try:
                         await tab.evaluate(f'''
                             (function() {{
@@ -1666,7 +1667,7 @@ async def nodriver_kham_main(ctx):
                         (function() {{
                             const input = document.querySelector('input.yd_counterNum');
                             if (input && input.value === '0') {{
-                                input.value = '{config_dict["ticket_number"]}';
+                                input.value = '{ticket_number_value}';
                             }}
                         }})();
                     ''')
@@ -2001,7 +2002,7 @@ async def nodriver_kham_main(ctx):
                         # Step 4: Handle quantity selection dialog
                         # After clicking "立即購票", a lightbox appears with quantity input
                         # Wait for lightbox with retry
-                        ticket_number = config_dict.get("ticket_number", 2)
+                        ticket_number = config_views.ticket_number(config_dict)
                         lightbox_found = False
 
                         for retry in range(5):  # Retry up to 5 times (total 2.5s max)
@@ -2151,7 +2152,7 @@ async def nodriver_kham_main(ctx):
                         (function() {{
                             const input = document.querySelector('{select_query}');
                             if (input && (input.value === '' || input.value === '0')) {{
-                                input.value = '{config_dict["ticket_number"]}';
+                                input.value = '{ticket_number_value}';
                                 input.dispatchEvent(new Event('change', {{ bubbles: true }}));
                             }}
                         }})();
@@ -2269,7 +2270,7 @@ async def nodriver_kham_main(ctx):
 
             if is_captcha_sent:
                 # Set ticket number by clicking + button
-                ticket_number = int(config_dict["ticket_number"])
+                ticket_number = int(config_views.ticket_number(config_dict))
                 try:
                     # Click + button N times to set ticket number
                     set_result = await tab.evaluate(f'''
@@ -2417,12 +2418,12 @@ async def nodriver_kham_main(ctx):
                         (function() {{
                             const input = document.querySelector('{select_query}');
                             if (input && (input.value === '' || input.value === '0')) {{
-                                input.value = '{config_dict["ticket_number"]}';
+                                input.value = '{ticket_number_value}';
                                 input.dispatchEvent(new Event('change', {{ bubbles: true }}));
                             }}
                         }})();
                     ''')
-                    debug.log(f"Ticket number set to: {config_dict['ticket_number']}")
+                    debug.log(f"Ticket number set to: {ticket_number_value}")
                 except Exception as exc:
                     debug.log(f"Set ticket number error: {exc}")
             elif "orders.ibon.com.tw" in url:
@@ -2433,7 +2434,7 @@ async def nodriver_kham_main(ctx):
                         (function() {{
                             const select = document.querySelector('{select_query}');
                             if (select) {{
-                                const targetValue = '{config_dict["ticket_number"]}';
+                                const targetValue = '{ticket_number_value}';
                                 // Check if option exists
                                 const option = Array.from(select.options).find(opt => opt.value === targetValue);
                                 if (option) {{
@@ -2450,7 +2451,7 @@ async def nodriver_kham_main(ctx):
                             return false;
                         }})();
                     ''')
-                    debug.log(f"[IBON TICKET] Ticket number set to: {config_dict['ticket_number']}")
+                    debug.log(f"[IBON TICKET] Ticket number set to: {ticket_number_value}")
                 except Exception as exc:
                     debug.log(f"[IBON TICKET] Set ticket number error: {exc}")
             else:
@@ -2477,7 +2478,7 @@ async def nodriver_kham_main(ctx):
                     # Execute all logic in JavaScript to avoid DOM element passing issues
                     result = await tab.evaluate(f'''
                         (function() {{
-                            const ticketNumber = '{config_dict["ticket_number"]}';
+                            const ticketNumber = '{ticket_number_value}';
                             const excludeKeywords = {exclude_keywords_json};
 
                             // Get all ticket type inputs

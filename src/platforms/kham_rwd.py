@@ -132,7 +132,7 @@ def _pick_utk_rwd_amount_row(rows, config_dict, match_area_keyword=True):
     With match_area_keyword the area keywords are tried in order (space = AND)
     and a miss falls back to area_auto_select.mode only if area_auto_fallback.
     """
-    ticket_number = int(config_dict.get("ticket_number", 1))
+    ticket_number = int(config_views.ticket_number(config_dict, default=1))
     candidates = []
     for row in rows or []:
         text = f"{row.get('area', '')} {row.get('type', '')}".strip()
@@ -385,10 +385,11 @@ async def nodriver_utk_rwd_assign_ticket_number(tab, url, config_dict):
     if row is None:
         debug.log(f"[CPBL AMOUNT] No ticket row fits ({len(rows)} on sale)")
         return False
+    ticket_number_value = config_views.ticket_number(config_dict)
     value = await tab.evaluate(f'''
         (() => {{
             const key = {json.dumps(row["key"])};
-            const target = {int(config_dict["ticket_number"])};
+            const target = {int(ticket_number_value)};
             const input = Array.from(document.querySelectorAll('input.numbox[id="AMOUNT"]'))
                 .find((el) => el.getAttribute('key') === key);
             if (!input) return null;

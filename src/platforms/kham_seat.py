@@ -442,7 +442,7 @@ async def nodriver_kham_seat_auto_select(tab, config_dict, rwd=False):
     - topright/topleft/downright/downleft: 組合方向，優先處理主要方向
     """
     is_seat_assigned = False
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
     allow_non_adjacent = config_dict["advanced"]["disable_adjacent_seat"]
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
@@ -971,7 +971,7 @@ async def nodriver_kham_seat_main(tab, config_dict, ocr, domain_name):
     """
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
 
     # Step 0: Check if seats are already selected (avoid duplicate selection)
     already_selected_count = 0

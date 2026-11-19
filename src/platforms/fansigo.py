@@ -793,7 +793,7 @@ async def nodriver_fansigo_assign_ticket_number(tab, config_dict, section_index=
         bool: True if quantity set successfully
     """
     debug = util.create_debug_logger(config_dict)
-    target_count = config_dict.get("ticket_number", 1)
+    target_count = config_views.ticket_number(config_dict, default=1)
 
     if target_count < 1:
         target_count = 1

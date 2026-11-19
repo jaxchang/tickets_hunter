@@ -727,7 +727,7 @@ async def nodriver_funone_check_sold_out(tab, config_dict):
         tuple: (is_sold_out: bool, remaining_count: int, ticket_info: list)
     """
     debug = util.create_debug_logger(config_dict)
-    ticket_number = config_dict.get("ticket_number", 2)
+    ticket_number = config_views.ticket_number(config_dict)
     area_config = config_views.area_view(config_dict)
     area_keyword = area_config["keyword"]
 
@@ -961,7 +961,7 @@ async def nodriver_funone_assign_ticket_number(tab, config_dict):
         bool: True if quantity set successfully
     """
     debug = util.create_debug_logger(config_dict)
-    ticket_number = config_dict.get("ticket_number", 2)
+    ticket_number = config_views.ticket_number(config_dict)
     area_config = config_views.area_view(config_dict)
     area_keyword = area_config["keyword"]
     keyword_exclude = area_config["keyword_exclude"]
@@ -2041,7 +2041,7 @@ async def nodriver_funone_main(ctx):
 
                     # Check sold-out status first
                     is_sold_out, remaining, ticket_info = await nodriver_funone_check_sold_out(tab, config_dict)
-                    ticket_number = config_dict.get("ticket_number", 2)
+                    ticket_number = config_views.ticket_number(config_dict)
 
                     # Handle sold-out or insufficient tickets
                     if is_sold_out or (remaining > 0 and remaining < ticket_number):

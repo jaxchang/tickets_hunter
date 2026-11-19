@@ -722,7 +722,7 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
 
     debug = util.create_debug_logger(config_dict)
 
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
 
     areas = None
     pending_tickets = None
@@ -957,7 +957,7 @@ async def nodriver_kktix_assign_ticket_number(tab, config_dict, kktix_area_keywo
 
     debug = util.create_debug_logger(config_dict)
 
-    ticket_number_str = str(config_dict["ticket_number"])
+    ticket_number_str = str(config_views.ticket_number(config_dict))
     area_config = config_views.area_view(config_dict)
     auto_select_mode = area_config["mode"]
 
