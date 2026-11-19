@@ -97,19 +97,24 @@ def select_date(rows, config_view):
         if not row.get("available"):
             continue
         text = row.get("text") or ""
-        if not text:
-            continue
-        try:
-            excluded = util.reset_row_text_if_match_keyword_exclude(
-                exclude_config, text
-            )
-        except Exception:
-            # The handlers used to run this predicate inside their
-            # per-row try, so a malformed keyword_exclude (missing,
-            # None, non-string) skipped every row instead of raising.
-            excluded = True
-        if excluded:
-            continue
+        # A row with empty text stays a candidate: it can still be
+        # picked by mode/fallback, and it matches only an empty
+        # keyword group. (Ticketmaster's two-pass extraction can
+        # yield such a row when the text re-read fails; the exclude
+        # predicate is not run on empty text, matching the handlers,
+        # which only ever ran it on rows that had text.)
+        if text:
+            try:
+                excluded = util.reset_row_text_if_match_keyword_exclude(
+                    exclude_config, text
+                )
+            except Exception:
+                # The handlers used to run this predicate inside their
+                # per-row try, so a malformed keyword_exclude (missing,
+                # None, non-string) skipped every row instead of raising.
+                excluded = True
+            if excluded:
+                continue
         candidate_indexes.append(index)
 
     if not candidate_indexes:

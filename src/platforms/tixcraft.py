@@ -757,16 +757,14 @@ async def nodriver_ticketmaster_date_auto_select(tab, config_dict):
         debug.log(f"[TICKETMASTER DATE] Failed to find date list after {max_attempts * 0.5}s")
         return False
 
-    matched_blocks = None
-    formated_area_list = []
-
-    if not area_list or len(area_list) == 0:
-        debug.log("[TICKETMASTER DATE] No dates found on page")
-        return False
-
-    debug.log(f"[TICKETMASTER DATE] Found {len(area_list)} date blocks")
-
-    # Filter date blocks
+    # Rows for the shared date-selection core (issue #26, ADR 0003).
+    # Two passes, mirroring the original extraction: the first pass
+    # decides availability (ticket text present, sold-out check), the
+    # second re-reads the text of available rows for keyword matching
+    # (a failed re-read leaves the text empty). This handler has never
+    # applied keyword_exclude, so the config view passes an empty
+    # exclude string on purpose.
+    rows = []
     for row in area_list:
         try:
             row_html = await row.get_html()
@@ -793,116 +791,35 @@ async def nodriver_ticketmaster_date_auto_select(tab, config_dict):
                     debug.log(f"[TICKETMASTER DATE] Skipping sold out event: {row_text[:60]}...")
                     break
 
-        if row_is_enabled:
-            formated_area_list.append(row)
+        rows.append({
+            "text": row_text,
+            "available": row_is_enabled,
+            "payload": row,
+        })
 
-    debug.log(f"[TICKETMASTER DATE] {len(formated_area_list)} available dates after filtering")
+    for row in rows:
+        if not row["available"]:
+            continue
+        try:
+            row_html = await row["payload"].get_html()
+            row["text"] = util.remove_html_tags(row_html)
+        except:
+            row["text"] = ""
+
+    available_date_count = sum(1 for row in rows if row["available"])
+    debug.log(f"[TICKETMASTER DATE] {available_date_count} available dates after filtering")
 
     # Get date_auto_fallback setting (default: False = strict mode)
     date_auto_fallback = config_dict.get('date_auto_fallback', False)
 
-    # Build text list for keyword matching
-    formated_area_list_text = []
-    for row in formated_area_list:
-        try:
-            row_html = await row.get_html()
-            row_text = util.remove_html_tags(row_html)
-            formated_area_list_text.append(row_text)
-        except:
-            formated_area_list_text.append("")
-
-    # T004-T008: Early return pattern (Feature 003)
-    if not date_keyword:
-        matched_blocks = formated_area_list
-        debug.log(f"[TICKETMASTER DATE KEYWORD] No keyword specified, using all {len(formated_area_list)} dates")
-    else:
-        # Early return pattern - iterate keywords in priority order
-        matched_blocks = []
-        target_row_found = False
-        keyword_matched_index = -1
-
-        try:
-            import json
-            import re
-            keyword_array = json.loads("[" + date_keyword + "]")
-
-            # T005: Start checking keywords log
-            debug.log(f"[TICKETMASTER DATE KEYWORD] Start checking keywords in order: {keyword_array}")
-            debug.log(f"[TICKETMASTER DATE KEYWORD] Total keyword groups: {len(keyword_array)}")
-            debug.log(f"[TICKETMASTER DATE KEYWORD] Checking against {len(formated_area_list_text)} available dates...")
-
-            # Iterate keywords in priority order (early return)
-            for keyword_index, keyword_item_set in enumerate(keyword_array):
-                debug.log(f"[TICKETMASTER DATE KEYWORD] Checking keyword #{keyword_index + 1}: {keyword_item_set}")
-
-                # Check all rows for this keyword
-                for i, row_text in enumerate(formated_area_list_text):
-                    normalized_row_text = re.sub(r'\s+', ' ', row_text)
-                    is_match = False
-
-                    if isinstance(keyword_item_set, str):
-                        # OR logic: single keyword
-                        normalized_keyword = re.sub(r'\s+', ' ', keyword_item_set)
-                        is_match = normalized_keyword in normalized_row_text
-                    elif isinstance(keyword_item_set, list):
-                        # AND logic: all keywords must match
-                        normalized_keywords = [re.sub(r'\s+', ' ', kw) for kw in keyword_item_set]
-                        match_results = [kw in normalized_row_text for kw in normalized_keywords]
-                        is_match = all(match_results)
-
-                        # Detailed AND logic log
-                        if debug.enabled:
-                            result_strs = [f"'{kw}':{('PASS' if r else 'FAIL')}" for kw, r in zip(keyword_item_set, match_results)]
-                            overall = "MATCHED" if is_match else "REJECTED"
-                            debug.log(f"[TICKETMASTER DATE KEYWORD] AND Match: [{', '.join(result_strs)}] -> {overall}")
-
-                    if is_match:
-                        # T006: Keyword matched - IMMEDIATELY select and stop
-                        matched_blocks = [formated_area_list[i]]
-                        target_row_found = True
-                        keyword_matched_index = keyword_index
-                        debug.log(f"[TICKETMASTER DATE KEYWORD] Keyword #{keyword_index + 1} matched: '{keyword_item_set}'")
-                        debug.log(f"[TICKETMASTER DATE SELECT] Selected date: {row_text[:80]} (keyword match)")
-                        break  # Early Return - stop checking other rows
-
-                if target_row_found:
-                    # EARLY RETURN: Stop checking further keywords
-                    break
-
-            # T007: All keywords failed log
-            if not target_row_found:
-                debug.log(f"[TICKETMASTER DATE KEYWORD] All keywords failed to match")
-
-        except Exception as e:
-            debug.log(f"[TICKETMASTER DATE KEYWORD] Parsing error: {e}")
-            matched_blocks = []
-
-    # Match result summary
-    debug.log(f"[TICKETMASTER DATE KEYWORD] ========================================")
-    debug.log(f"[TICKETMASTER DATE KEYWORD] Match Summary:")
-    debug.log(f"[TICKETMASTER DATE KEYWORD]   Total dates available: {len(formated_area_list) if formated_area_list else 0}")
-    debug.log(f"[TICKETMASTER DATE KEYWORD]   Total dates matched: {len(matched_blocks) if matched_blocks else 0}")
-    debug.log(f"[TICKETMASTER DATE KEYWORD] ========================================")
-
-    # T018-T020: Conditional fallback based on date_auto_fallback switch
-    if matched_blocks is not None and len(matched_blocks) == 0 and date_keyword and formated_area_list is not None and len(formated_area_list) > 0:
-        if date_auto_fallback:
-            # T018: Fallback enabled - use auto_select_mode
-            debug.log(f"[TICKETMASTER DATE FALLBACK] date_auto_fallback=true, triggering auto fallback")
-            debug.log(f"[TICKETMASTER DATE FALLBACK] Selecting available date based on date_select_order='{auto_select_mode}'")
-            matched_blocks = formated_area_list
-        else:
-            # T019: Fallback disabled - strict mode
-            debug.log(f"[TICKETMASTER DATE FALLBACK] date_auto_fallback=false, fallback is disabled")
-            debug.log(f"[TICKETMASTER DATE SELECT] No date selected, will reload page and retry")
-
-    # Select target
-    if formated_area_list is None or len(formated_area_list) == 0:
-        target_area = None
-    elif matched_blocks is None or len(matched_blocks) == 0:
-        target_area = None
-    else:
-        target_area = util.get_target_item_from_matched_list(matched_blocks, auto_select_mode)
+    config_view = {
+        "keyword": date_keyword,
+        "mode": auto_select_mode,
+        "keyword_exclude": "",
+        "fallback": date_auto_fallback,
+    }
+    chosen_index = date_selection.select_date(rows, config_view)
+    target_area = rows[chosen_index]["payload"] if chosen_index is not None else None
 
     is_date_clicked = False
     if target_area:
@@ -944,7 +861,7 @@ async def nodriver_ticketmaster_date_auto_select(tab, config_dict):
             debug.log(f"[TICKETMASTER DATE] Failed to click link: {exc}")
 
     # Auto reload if no match
-    if auto_reload_coming_soon_page_enable and not is_date_clicked and len(formated_area_list) == 0 and _is_page_reload_enabled(config_dict, debug, "TICKETMASTER DATE"):
+    if auto_reload_coming_soon_page_enable and not is_date_clicked and available_date_count == 0 and _is_page_reload_enabled(config_dict, debug, "TICKETMASTER DATE"):
         try:
             # Pace reloads with a non-blocking cooldown instead of sleeping
             # for the refresh interval (issue #3). The main loop spins every
