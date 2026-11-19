@@ -19,6 +19,7 @@ from zendriver import cdp
 
 import util
 import date_selection
+import config_views
 from nodriver_common import (
     PageState,
     cdp_click_at,
@@ -1358,10 +1359,11 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
         debug.log("[KKTIX DATE SELECT] Main switch is disabled, skipping date selection")
         return False
 
-    # Read config
-    auto_select_mode = config_dict["date_auto_select"]["mode"]
-    date_keyword = config_dict["date_auto_select"]["date_keyword"].strip()
-    date_auto_fallback = config_dict.get('date_auto_fallback', False)  # T017: Safe access for new field (default: strict mode)
+    # Read config via the date view (issue #30, ADR 0004)
+    config_view = config_views.date_view(config_dict)
+    auto_select_mode = config_view["mode"]
+    date_keyword = config_view["keyword"]
+    date_auto_fallback = config_view["fallback"]
 
     # Check if multi-session page exists with smart polling
     session_list = None
@@ -1443,12 +1445,6 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
             debug.log(f"[KKTIX DATE] Error processing session: {exc}")
             continue
 
-    config_view = {
-        "keyword": date_keyword,
-        "mode": auto_select_mode,
-        "keyword_exclude": config_dict.get("keyword_exclude"),
-        "fallback": date_auto_fallback,
-    }
     chosen_index = date_selection.select_date(rows, config_view)
 
     if chosen_index is None:
