@@ -24,34 +24,6 @@ CONST_KEYWORD_DELIMITER = ';'  # New delimiter (semicolon)
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
 
-def get_ip_address():
-    gethostname = None
-    try:
-        gethostname = socket.gethostname()
-    except Exception as exc:
-        print("gethostname", exc)
-        gethostname = None
-
-    default_ip = "127.0.0.1"
-    ip = default_ip
-
-    check_public_ip = True    
-    if "macos" in platform.platform().lower():
-        if "arm64" in platform.platform().lower():
-            check_public_ip = False
-
-    if check_public_ip and not gethostname is None:
-        try:
-            ip = [l for l in ([ip for ip in socket.gethostbyname_ex(gethostname)[2]
-                if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)),
-                s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET,
-                socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
-        except Exception as exc:
-            print("gethostbyname_ex", exc)
-            ip = gethostname
-    
-    #print("get_ip_address:", ip)
-    return ip
 
 def is_connectable(port: int, host: Optional[str] = "localhost") -> bool:
     """Tries to connect to the server at port to see if it is running.
@@ -90,11 +62,6 @@ def find_between( s, first, last ):
         pass
     return ret
 
-def is_arm():
-    ret = False
-    if "-arm" in platform.platform():
-        ret = True
-    return ret
 
 def get_app_root():
     app_root = ""
@@ -300,15 +267,6 @@ def force_remove_file(filepath):
             pass
 
 
-def t_or_f(arg):
-    ret = False
-    ua = str(arg).upper()
-    if 'TRUE'.startswith(ua):
-        ret = True
-    elif 'YES'.startswith(ua):
-        ret = True
-    return ret
-
 def format_keyword_string(keyword):
     """
     Minimal keyword formatting - no normalization.
@@ -346,18 +304,6 @@ def format_quota_string(formated_html_text):
     formated_html_text = formated_html_text.replace(')','】')
     return formated_html_text
 
-def full2half(keyword):
-    n = ""
-    if not keyword is None:
-        if len(keyword) > 0:
-            for char in keyword:
-                num = ord(char)
-                if num == 0x3000:
-                    num = 32
-                elif 0xFF01 <= num <= 0xFF5E:
-                    num -= 0xfee0
-                n += chr(num)
-    return n
 
 def get_chinese_numeric():
     my_dict = {}
@@ -374,14 +320,6 @@ def get_chinese_numeric():
     return my_dict
 
 # 同義字
-def synonym_dict(char):
-    ret = []
-    my_dict = get_chinese_numeric()
-    if char in my_dict:
-        ret = my_dict[char]
-    else:
-        ret.append(char)
-    return ret
 
 def chinese_numeric_to_int(char):
     ret = None
@@ -446,25 +384,6 @@ def is_all_alpha_or_numeric(text):
 
     #print("text/is_all_alpha_or_numeric:",text,ret)
     return ret
-
-def get_brave_bin_path():
-    brave_path = ""
-    if platform.system() == 'Windows':
-        brave_path = "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
-        if not os.path.exists(brave_path):
-            brave_path = os.path.expanduser('~') + "\\AppData\\Local\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
-        if not os.path.exists(brave_path):
-            brave_path = "C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
-        if not os.path.exists(brave_path):
-            brave_path = "D:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
-
-    if platform.system() == 'Linux':
-        brave_path = "/usr/bin/brave-browser"
-
-    if platform.system() == 'Darwin':
-        brave_path = '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
-
-    return brave_path
 
 
 # convert web string to reg pattern
@@ -2092,54 +2011,6 @@ def get_answer_list_from_question_string(registrationsNewApp_div, captcha_text_d
 
     return answer_list
 
-def kktix_get_registerStatus(event_code):
-    html_result = None
-
-    url = "https://kktix.com/g/events/%s/register_info" % (event_code)
-    #print('event_code:',event_code)
-    #print("url:", url)
-
-    headers = {"Accept-Language": "zh-TW,zh;q=0.5", 'User-Agent': USER_AGENT}
-    try:
-        html_result = requests.get(url , headers=headers, timeout=0.7, allow_redirects=False)
-    except Exception as exc:
-        html_result = None
-        print("send reg_info request fail:")
-        print(exc)
-
-    registerStatus = ""
-    if not html_result is None:
-        status_code = html_result.status_code
-        #print("status_code:",status_code)
-        if status_code == 200:
-            html_text = html_result.text
-            #print("html_text:", html_text)
-            try:
-                jsLoads = json.loads(html_text)
-                if 'inventory' in jsLoads:
-                    if 'registerStatus' in jsLoads['inventory']:
-                        registerStatus = jsLoads['inventory']['registerStatus']
-            except Exception as exc:
-                print("load reg_info json fail:")
-                print(exc)
-                pass
-
-    #print("registerStatus:", registerStatus)
-    return registerStatus
-
-def kktix_get_event_code(url):
-    event_code = ""
-    if '/registrations/new' in url:
-        prefix_list = ['.com/events/','.cc/events/']
-        postfix = '/registrations/new'
-
-        for prefix in prefix_list:
-            event_code = find_between(url,prefix,postfix)
-            if len(event_code) > 0:
-                break
-
-    #print('event_code:',event_code)
-    return event_code
 
 def launch_maxbot(script_name="nodriver_tixcraft", filename="", homepage="", kktix_account = "", kktix_password="", window_size="", headless="", instance=""):
     cmd_argument = []
@@ -2274,8 +2145,6 @@ def parse_nodriver_result(result):
     # 若不是標準格式，原樣返回
     return result
 
-def get_token():
-    return str(uuid.uuid4().hex)
 
 # =============================================================================
 # Discord Webhook Functions (specs/009-discord-webhook)
@@ -2601,122 +2470,3 @@ async def verify_cf_with_templates(tab, templates: list = None, show_debug: bool
 
 IBON_LIVEMAP_CDN_BASE = "https://qwareticket-asysimg.azureedge.net/QWARE_TICKET/images/Temp"
 IBON_ORDER_BASE_URL = "https://orders.ibon.com.tw/application/UTK02/"
-
-
-def ibon_fetch_and_parse_livemap(performance_id, debug=None):
-    """Fetch ibon live.map from Azure CDN and parse area data.
-
-    Returns list of area dicts or empty list on failure.
-    Each dict: page_name, performance_id, area_id, group_id,
-               area_name, price (int), remaining (int).
-    """
-    areas = []
-    url = f"{IBON_LIVEMAP_CDN_BASE}/{performance_id}/1_{performance_id}_live.map"
-
-    try:
-        resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=3)
-        if resp.status_code != 200:
-            if debug:
-                debug.log(f"[IBON LIVEMAP] HTTP {resp.status_code} for {performance_id}")
-            return areas
-        resp.encoding = 'utf-8'
-        content = resp.text
-    except Exception as exc:
-        if debug:
-            debug.log(f"[IBON LIVEMAP] Request failed: {exc}")
-        return areas
-
-    send_pattern = r"Send\('(\d+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']*)'\)"
-    title_pattern = r'title="[^:]+:([^"]*?)\s+\u7968\u50f9[\uff1a:]([^\s]+)\s+\u5c1a\u9918[\uff1a:](\d+)"'
-
-    for area_match in re.finditer(r'<area[^>]+>', content):
-        area_html = area_match.group()
-        send_match = re.search(send_pattern, area_html)
-        title_match = re.search(title_pattern, area_html)
-        if send_match and title_match:
-            try:
-                price_str = title_match.group(2).replace(',', '')
-                price = int(price_str)
-                remaining = int(title_match.group(3))
-            except (ValueError, IndexError):
-                continue
-
-            areas.append({
-                'page_name': send_match.group(1),
-                'performance_id': send_match.group(2),
-                'area_id': send_match.group(3),
-                'group_id': send_match.group(4),
-                'area_name': title_match.group(1).strip(),
-                'price': price,
-                'remaining': remaining,
-            })
-
-    if debug:
-        debug.log(f"[IBON LIVEMAP] Parsed {len(areas)} areas for {performance_id}")
-
-    return areas
-
-
-def ibon_livemap_select_area(livemap_areas, config_dict, area_keyword_item, debug=None):
-    """Select best area from live.map data based on config filters.
-
-    Applies: remaining >= ticket_number, keyword_exclude, keyword match,
-    then auto_select_mode (top/bottom/center/random).
-
-    Returns selected area dict or None.
-    """
-    ticket_number = config_dict["ticket_number"]
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-
-    matched = []
-    for area in livemap_areas:
-        area_label = f"{area['area_name']} | price={area['price']} | remaining={area['remaining']}"
-
-        if area['remaining'] < ticket_number:
-            if debug:
-                debug.log(f"[IBON LIVEMAP] {area_label} -> skip: insufficient (need {ticket_number})")
-            continue
-
-        row_text = area['area_name'] + ' ' + str(area['price'])
-
-        if reset_row_text_if_match_keyword_exclude(config_dict, row_text):
-            if debug:
-                debug.log(f"[IBON LIVEMAP] {area_label} -> skip: excluded by keyword")
-            continue
-
-        if area_keyword_item and len(area_keyword_item) > 0:
-            keyword_clean = area_keyword_item.strip()
-            if keyword_clean.startswith('"') and keyword_clean.endswith('"'):
-                keyword_clean = keyword_clean[1:-1]
-
-            sub_keywords = [kw.strip() for kw in keyword_clean.split(' ') if kw.strip()]
-            if not all(sub_kw in row_text for sub_kw in sub_keywords):
-                if debug:
-                    debug.log(f"[IBON LIVEMAP] {area_label} -> skip: keyword mismatch (need: {keyword_clean})")
-                continue
-
-        if debug:
-            debug.log(f"[IBON LIVEMAP] {area_label} -> MATCHED")
-        matched.append(area)
-
-    return get_target_item_from_matched_list(matched, auto_select_mode)
-
-
-def ibon_build_skip_url(area_dict):
-    """Build ibon direct navigation URL from live.map area data.
-
-    Two patterns based on page_name:
-      != '0205' -> UTK{page_name}_.aspx?...
-      == '0205' -> UTK0201_001.aspx?...
-    """
-    page_name = area_dict['page_name']
-    perf_id = area_dict['performance_id']
-    area_id = area_dict['area_id']
-    group_id = area_dict['group_id']
-
-    if page_name != '0205':
-        path = f"UTK{page_name}_.aspx?PERFORMANCE_ID={perf_id}&GROUP_ID={group_id}&PERFORMANCE_PRICE_AREA_ID={area_id}"
-    else:
-        path = f"UTK0201_001.aspx?PERFORMANCE_ID={perf_id}&GROUP_ID={group_id}&PERFORMANCE_PRICE_AREA_ID={area_id}"
-
-    return IBON_ORDER_BASE_URL + path
