@@ -21,7 +21,11 @@ and a config view::
      "mode": str,             # date_auto_select mode
      "keyword_exclude": ...,  # raw keyword_exclude value, passed
                               # through untouched (see select_date)
-     "fallback": bool}        # date_auto_fallback
+     "fallback": bool,        # date_auto_fallback
+     "parse_error_all": bool} # optional; when True, a keyword parse
+                              # or evaluation failure behaves like no
+                              # keyword at all (kham's handler did this;
+                              # default False = failure is a miss)
 
 ``select_date`` returns the index into ``rows`` of the chosen row, or
 None. Reload / cooldown / return-value semantics stay in the handlers.
@@ -34,7 +38,10 @@ Semantics pinned by the kktix characterization tests
   and within a group the first matching row (in row order) wins. A
   string group is one substring; a list group requires all of its
   substrings (AND). Whitespace runs are collapsed on both sides before
-  comparing. A parse failure behaves like no match.
+  comparing. A parse failure behaves like no match, unless the config
+  view sets ``parse_error_all`` (kham), in which case it behaves like
+  no keyword. Group evaluation is lazy: a malformed group only fails
+  the match when no earlier group matched first.
 - With no keyword (or a keyword miss with fallback on), the mode pick
   over the candidate rows delegates to
   ``util.get_target_index_by_mode``; the exclude predicate delegates
@@ -71,18 +78,24 @@ def _group_matches(group, normalized_text):
 
 
 def _priority_match(rows, candidate_indexes, keyword):
-    """Index of the first row matched by the first matching keyword
-    group, or None (no match, or an unparsable keyword string)."""
+    """(index, failed): index of the first row matched by the first
+    matching keyword group, or None. ``failed`` is True when parsing
+    or evaluating a group raised; groups are evaluated lazily in
+    priority order, so a failure only surfaces when no earlier group
+    matched (the handlers' matching loops behaved the same way)."""
     try:
         keyword_groups = json.loads("[" + keyword + "]")
-        for group in keyword_groups:
+    except Exception:
+        return None, True
+    for group in keyword_groups:
+        try:
             for index in candidate_indexes:
                 normalized_text = _collapse_whitespace(rows[index]["text"])
                 if _group_matches(group, normalized_text):
-                    return index
-    except Exception:
-        return None
-    return None
+                    return index, False
+        except Exception:
+            return None, True
+    return None, False
 
 
 def select_date(rows, config_view):
@@ -122,10 +135,16 @@ def select_date(rows, config_view):
 
     keyword = (config_view.get("keyword") or "").strip()
     if keyword:
-        matched = _priority_match(rows, candidate_indexes, keyword)
+        matched, match_failed = _priority_match(rows, candidate_indexes, keyword)
         if matched is not None:
             return matched
-        if not config_view.get("fallback"):
+        if match_failed and config_view.get("parse_error_all"):
+            # This platform's handler treated a keyword failure as
+            # "no keyword" (its except set the matched list to every
+            # row): fall through to the mode pick over all candidates,
+            # regardless of the fallback switch.
+            pass
+        elif not config_view.get("fallback"):
             return None
 
     mode_index = util.get_target_index_by_mode(

@@ -20,6 +20,7 @@ import webbrowser
 from zendriver import cdp
 
 import util
+import date_selection
 from nodriver_common import (
     PageState,
     asyncio_sleep_with_pause_check,
@@ -981,9 +982,10 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
     except Exception as exc:
         debug.log(f"query_selector_all error: {exc}")
 
-    # Format area list with keyword filtering
-    formated_area_list = []
-    formated_area_list_text = []
+    # Rows for the shared date-selection core (issue #28, ADR 0003):
+    # availability is decided here by the HTML filters below; keyword
+    # exclude and priority matching live in the core.
+    rows = []
 
     if area_list and len(area_list) > 0:
         for row in area_list:
@@ -995,40 +997,42 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
                 debug.log(f"get_html error: {exc}")
                 break
 
-            if not row_text or util.reset_row_text_if_match_keyword_exclude(config_dict, row_text):
+            if not row_text:
                 continue
+
+            if util.reset_row_text_if_match_keyword_exclude(config_dict, row_text):
+                rows.append({"text": row_text, "available": False, "payload": row})
+                continue
+
+            row_is_enabled = True
 
             # Filter: exclude disabled buttons
             # Issue #188: Allow "尚未開賣" (coming soon) buttons even with CSS disabled class
-            if ' disabled">' in row_html:
-                if '尚未開賣' not in row_html:
-                    continue
+            if ' disabled">' in row_html and '尚未開賣' not in row_html:
+                row_is_enabled = False
 
             # RWD rows: 購買 opens the area page via location.href; the other
             # button kind, VipSellCheck(), is a member pre-sale (out of scope).
-            if is_rwd:
-                if 'location.href' in row_html:
-                    formated_area_list.append(row)
-                    formated_area_list_text.append(row_text)
-                continue
+            if row_is_enabled and is_rwd:
+                row_is_enabled = 'location.href' in row_html
 
             # Filter: check if button exists (for kham/ticket)
-            if 'udnfunlife' not in domain_name:
+            if row_is_enabled and not is_rwd and 'udnfunlife' not in domain_name:
                 if '<button' in row_html:
                     # Issue #188: Support "尚未開賣" (coming soon) button for ERA TICKET
                     valid_button_texts = ['立即訂購', '點此購票', '尚未開賣']
                     if not any(text in row_html for text in valid_button_texts):
-                        continue
+                        row_is_enabled = False
                 else:
-                    continue  # No button, skip
+                    row_is_enabled = False  # No button, skip
 
             # Filter: check if tickets available (udn)
-            if 'udnfunlife' in domain_name:
+            if row_is_enabled and not is_rwd and 'udnfunlife' in domain_name:
                 if '前往購票' not in row_html:
-                    continue
+                    row_is_enabled = False
 
             # Filter: check price availability (for kham/ticket)
-            if 'udnfunlife' not in domain_name:
+            if row_is_enabled and not is_rwd and 'udnfunlife' not in domain_name:
                 if '<td' in row_html:
                     disabled_marker = '<del>' if 'ticket.com' in domain_name else '"lightblue"'
                     # Split by <td to get each column
@@ -1045,124 +1049,51 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
                                 break
                         if is_all_price_disabled:
                             debug.log(f"Skipping row: all prices are disabled")
-                            continue
+                            row_is_enabled = False
 
-            formated_area_list.append(row)
-            formated_area_list_text.append(row_text)
+            rows.append({
+                "text": row_text,
+                "available": row_is_enabled,
+                "payload": row,
+            })
+
+    available_rows = [row for row in rows if row["available"]]
 
     if debug.enabled:
-        debug.log(f"Valid date rows count: {len(formated_area_list)}")
-        if formated_area_list and len(formated_area_list) > 0:
+        debug.log(f"Valid date rows count: {len(available_rows)}")
+        if available_rows:
             # Clean up whitespace for display
             import re
-            display_text = re.sub(r'\s+', ' ', formated_area_list_text[0]).strip()
+            display_text = re.sub(r'\s+', ' ', available_rows[0]["text"]).strip()
             debug.log(f"First row text sample: {display_text[:80]}")
 
-    # Apply keyword matching (similar to TixCraft)
-    matched_blocks = None
-    if formated_area_list and len(formated_area_list) > 0:
-        if len(date_keyword) == 0:
-            matched_blocks = formated_area_list
-            debug.log(f"No keyword specified, using all {len(matched_blocks)} rows")
-        else:
-            # Match by keyword
-            matched_blocks = []
-            try:
-                import json
-                import re
-                keyword_array = json.loads("[" + date_keyword + "]")
-                debug.log(f"date_keyword array: {keyword_array}")
-
-                # Feature 003: Early return pattern - iterate keywords in priority order
-                target_row_found = False
-                keyword_matched_index = -1
-
-                for keyword_index, keyword_item_set in enumerate(keyword_array):
-                    debug.log(f"[KHAM DATE KEYWORD] Checking keyword #{keyword_index + 1}: {keyword_item_set}")
-
-                    # Check all rows for this keyword
-                    for i, row_text in enumerate(formated_area_list_text):
-                        normalized_row_text = re.sub(r'\s+', ' ', row_text)
-                        is_match = False
-
-                        if isinstance(keyword_item_set, str):
-                            # OR logic: single keyword
-                            normalized_keyword = re.sub(r'\s+', ' ', keyword_item_set)
-                            is_match = normalized_keyword in normalized_row_text
-                        elif isinstance(keyword_item_set, list):
-                            # AND logic: all keywords must match
-                            normalized_keywords = [re.sub(r'\s+', ' ', kw) for kw in keyword_item_set]
-                            match_results = [kw in normalized_row_text for kw in normalized_keywords]
-                            is_match = all(match_results)
-
-                        if is_match:
-                            # Keyword matched - IMMEDIATELY select and stop
-                            matched_blocks = [formated_area_list[i]]
-                            target_row_found = True
-                            keyword_matched_index = keyword_index
-                            if debug.enabled:
-                                debug.log(f"[KHAM DATE KEYWORD] Keyword #{keyword_index + 1} matched: '{keyword_item_set}'")
-                                # Clean up whitespace for display
-                                display_row_text = re.sub(r'\s+', ' ', row_text).strip()
-                                debug.log(f"[KHAM DATE SELECT] Selected date: {display_row_text[:80]} (keyword match)")
-                            break
-
-                    if target_row_found:
-                        # EARLY RETURN: Stop checking further keywords
-                        break
-
-                # All keywords failed log
-                if not target_row_found:
-                    debug.log(f"[KHAM DATE KEYWORD] All keywords failed to match")
-
-            except Exception as e:
-                debug.log(f"keyword parsing error: {e}")
-                matched_blocks = formated_area_list
-
-            if debug.enabled:
-                if matched_blocks:
-                    debug.log("After keyword match, found count:", len(matched_blocks))
-                else:
-                    debug.log("No matches found for keyword:", date_keyword)
-    else:
-        debug.log("No valid date rows found")
-
-    # Feature 003: Conditional fallback based on date_auto_fallback switch
-    if matched_blocks is not None and len(matched_blocks) == 0 and len(date_keyword) > 0:
-        if formated_area_list and len(formated_area_list) > 0:
-            if date_auto_fallback:
-                # Fallback enabled - use auto_select_mode
-                debug.log(f"[KHAM DATE FALLBACK] date_auto_fallback=true, triggering auto fallback")
-                debug.log(f"[KHAM DATE FALLBACK] Selecting available date based on date_select_order='{auto_select_mode}'")
-                matched_blocks = formated_area_list
-            else:
-                # Fallback disabled - strict mode (no selection, will reload)
-                debug.log(f"[KHAM DATE FALLBACK] date_auto_fallback=false, fallback is disabled")
-                debug.log(f"[KHAM DATE SELECT] No date selected, will reload page and retry")
-                return False  # Return False to trigger reload logic in caller
-
-    # Handle case when formated_area_list is empty or None (all options excluded)
-    if formated_area_list is None or len(formated_area_list) == 0:
+    # Handle case when no rows are available (all options excluded):
+    # the original returned here, before any reload handling.
+    if len(available_rows) == 0:
         debug.log(f"[KHAM DATE FALLBACK] No available options after exclusion")
         return False
 
-    # Get target date using mode
-    target_row = util.get_target_item_from_matched_list(matched_blocks, auto_select_mode)
+    # Kham's keyword parse-failure semantics differ from the other
+    # platforms': the old matching loop's except set the matched list
+    # to every row, so a parse/evaluation failure behaves like no
+    # keyword (parse_error_all). The core evaluates groups lazily,
+    # like the old loop, so an earlier matching group still wins over
+    # a later malformed one.
+    config_view = {
+        "keyword": date_keyword,
+        "mode": auto_select_mode,
+        "keyword_exclude": config_dict.get("keyword_exclude"),
+        "fallback": date_auto_fallback,
+        "parse_error_all": True,
+    }
+    chosen_index = date_selection.select_date(rows, config_view)
+    target_row = rows[chosen_index]["payload"] if chosen_index is not None else None
 
     if debug.enabled:
         if target_row:
-            # Get text for debug
-            try:
-                target_row_html = await target_row.get_html()
-                target_row_text = util.remove_html_tags(target_row_html)
-                # Clean up whitespace for display
-                import re
-                display_row_text = re.sub(r'\s+', ' ', target_row_text).strip()
-                debug.log(f"Target row selected (mode: {auto_select_mode}): {display_row_text[:80]}")
-            except:
-                debug.log(f"Target row selected (mode: {auto_select_mode})")
+            debug.log(f"Target row selected (mode: {auto_select_mode})")
         else:
-            debug.log(f"No target row selected from {len(matched_blocks) if matched_blocks else 0} matched blocks")
+            debug.log("No target row selected")
 
     is_date_assign_by_bot = False
     is_coming_soon = False
@@ -1200,7 +1131,7 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
 
     # Auto reload if: no target found OR target is coming soon button
     if not is_date_assign_by_bot and auto_reload_coming_soon_page_enable:
-        if is_coming_soon or formated_area_list is None or len(formated_area_list) == 0:
+        if is_coming_soon or len(available_rows) == 0:
             try:
                 if debug.enabled:
                     if is_coming_soon:
