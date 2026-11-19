@@ -13,6 +13,7 @@ from zendriver import cdp
 
 import util
 from nodriver_common import (
+    PageState,
     check_and_handle_pause,
     evaluate_with_pause_check,
     get_card_prefix,
@@ -45,7 +46,29 @@ __all__ = [
     "nodriver_ticketplus_main",
 ]
 
-_state = {}
+# Module-level state. Keys declare their lifecycle here, in one place
+# (issue #7, ADR 0002): page keys are cleared by PageState when the main
+# function moves to a different page; session keys survive page changes
+# for the reason stated.
+# Page ids for PageState: the main function classifies the current page
+# into one of these per pass. Declarations and set_page share the names
+# so a typo cannot silently disable a key's clearing.
+_PAGE_ACTIVITY = "activity"
+_PAGE_ORDER = "order"
+_PAGE_CONFIRM = "confirm"
+
+_state = PageState("ticketplus")
+_state.declare_page("date_reload_cooldown_until", _PAGE_ACTIVITY)
+_state.declare_page("order_reload_cooldown_until", _PAGE_ORDER)
+_state.declare_session("fail_list", "ticket failure memory; reset on leaving the order page")
+_state.declare_session("is_popup_confirm", "confirm popup flag for the order flow")
+_state.declare_session("is_ticket_assigned", "ticket assignment flag for the order flow")
+_state.declare_session("start_time", "purchase-flow timing for the whole run")
+_state.declare_session("done_time", "purchase-flow timing for the whole run")
+_state.declare_session("elapsed_time", "purchase-flow timing for the whole run")
+_state.declare_session("signin_form_filled", "sign-in form is filled once per run")
+_state.declare_session("purchase_completed", "dispatcher reads it to stop after purchase")
+_state.declare_session("order_page_visited", "queue/order visit memory across pages")
 
 # After the next button is clicked the site does one of three things: navigate to
 # the confirmation page, open a failure dialog, or enter its in-page queue. Poll
@@ -2196,13 +2219,17 @@ async def nodriver_ticketplus_main(tab, url, config_dict, ocr, Captcha_Browser):
         _state["signin_form_filled"] = False
         _state["purchase_completed"] = False
 
-    # Reload cooldowns belong to their page type (issue #3): drop them on
-    # any other page, so a stale deadline can neither fire an unpaced
-    # reload nor postpone the first reload on a different page.
-    if '/activity/' not in url.lower():
-        _state.pop("date_reload_cooldown_until", None)
-    if '/order/' not in url.lower():
-        _state.pop("order_reload_cooldown_until", None)
+    # Page state lifecycle (issue #7): classify the page once per pass;
+    # PageState clears the page keys owned by any other page, so a stale
+    # reload cooldown can neither fire nor postpone work elsewhere.
+    if '/activity/' in url.lower():
+        _state.set_page(_PAGE_ACTIVITY)
+    elif '/order/' in url.lower():
+        _state.set_page(_PAGE_ORDER)
+    elif '/confirm/' in url.lower() or '/confirmseat/' in url.lower():
+        _state.set_page(_PAGE_CONFIRM)
+    else:
+        _state.set_page(None)
 
     home_url = 'https://ticketplus.com.tw/'
     is_user_signin = False
