@@ -104,7 +104,7 @@ build_scripts/           PyInstaller 打包腳本
 `docs/02-development/code-boundaries.md`）：
 
 ```
-nodriver_tixcraft  ->  platforms/*  ->  nodriver_common  ->  util / settings
+nodriver_tixcraft  ->  platforms/*  ->  nodriver_common / date_selection  ->  util / settings
 ```
 
 ### 平台與模組對照

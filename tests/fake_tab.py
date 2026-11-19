@@ -13,7 +13,7 @@ Rules of the seam:
   needs; anything unregistered answers with the empty default a
   sold-out page would give.
 - Grow from real scenarios only. The surface below is exactly what the
-  first scenario uses. When a new test needs a tab or element method
+  existing scenarios use. When a new test needs a tab or element method
   that is not here, add the smallest recording/playback version of it
   in that change; do not fake CDP (``tab.send``) or browser internals
   speculatively.
@@ -29,16 +29,38 @@ See ``test_tixcraft_area_cooldown.py`` for a worked example.
 class FakeElement:
     """A canned page element: children registered per selector."""
 
-    def __init__(self):
+    def __init__(self, html=""):
+        self._html = html
+        self._children = {}
         self._children_all = {}
+        self.click_calls = 0
+
+    def register_child(self, selector, element=None):
+        """Make ``query_selector(selector)`` return ``element``.
+
+        Creates and returns a fresh FakeElement when none is given.
+        """
+        if element is None:
+            element = FakeElement()
+        self._children[selector] = element
+        return element
 
     def register_children(self, selector, elements):
         """Make ``query_selector_all(selector)`` return ``elements``."""
         self._children_all[selector] = list(elements)
         return elements
 
+    async def query_selector(self, selector):
+        return self._children.get(selector)
+
     async def query_selector_all(self, selector):
         return list(self._children_all.get(selector, []))
+
+    async def get_html(self):
+        return self._html
+
+    async def click(self):
+        self.click_calls += 1
 
 
 class FakeTab:
@@ -50,6 +72,7 @@ class FakeTab:
         self.sleep_calls = []
         self.evaluate_calls = []
         self._elements = {}
+        self._elements_all = {}
         self._evaluate_responses = []
 
     def register_element(self, selector, element=None):
@@ -71,8 +94,16 @@ class FakeTab:
         """
         self._evaluate_responses.append((match, result))
 
+    def register_elements(self, selector, elements):
+        """Make ``query_selector_all(selector)`` return ``elements``."""
+        self._elements_all[selector] = list(elements)
+        return elements
+
     async def query_selector(self, selector):
         return self._elements.get(selector)
+
+    async def query_selector_all(self, selector):
+        return list(self._elements_all.get(selector, []))
 
     async def evaluate(self, script, await_promise=False):
         self.evaluate_calls.append(script)

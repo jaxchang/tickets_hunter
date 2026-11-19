@@ -16,6 +16,7 @@
 - **`nodriver_common.py`** — 共用瀏覽器基礎設施：DOM 操作、暫停機制、Cloudflare、瀏覽器初始化、OCR 工廠、通知。禁止：平台業務邏輯、import `platforms/*` 或 `nodriver_tixcraft`。
 - **`platforms/*.py`** — 各平台 12 階段流程，一平台一檔（家族平台同檔，如 tixcraft + ticketmaster）。狀態用模組層級 `_state`（已遷移模組以 `PageState` 宣告鍵的生命週期，見 ADR 0002）；平台常數定義在各自模組。禁止：跨平台 import、import `nodriver_tixcraft`。
 - **`util.py`** — 純跨平台工具：文字比對、關鍵字解析、字串正規化、檔案 I/O、DebugLogger、CAPTCHA 數學猜測。禁止：平台選擇器／URL、業務邏輯、import `settings` 或 `nodriver_tixcraft`。此檔為所有平台共用，修改前務必評估跨平台影響。
+- **`date_selection.py`** — 日期選擇共用核心（ADR 0003）：純函式 `select_date(rows, config_view)`，只處理純資料列（文字、available、payload），不碰 DOM。禁止：平台選擇器／URL、import `platforms/*` 或 `nodriver_common`。僅允許 `import util`。
 - **`settings.py`** — 設定 CRUD 與 Tornado Web Server。禁止：搶票邏輯、import `nodriver_tixcraft`。僅允許 `import util`。
 
 ---
@@ -24,7 +25,8 @@
 
 ```
 nodriver_tixcraft  -->  nodriver_common, platforms/*, util, settings
-platforms/*        -->  nodriver_common, util
+platforms/*        -->  nodriver_common, util, date_selection
+date_selection     -->  util
 nodriver_common    -->  util, settings
 settings           -->  util
 util               -->  (無專案內部匯入)
