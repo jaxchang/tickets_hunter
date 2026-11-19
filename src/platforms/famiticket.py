@@ -183,7 +183,8 @@ async def nodriver_fami_verify(tab, config_dict, fail_list=None):
         if has_verify_input:
             debug.log("[FAMI VERIFY] Verification input found (#verifyPrefAnswer)")
 
-            auto_guess_enable = config_dict["advanced"].get("auto_guess_options", False)
+            answer_config = config_views.answer_view(config_dict)
+            auto_guess_enable = answer_config["auto_guess_options"]
 
             # stored as JSON ("a","b") by the settings page, so split(',') keeps the quotes
             answer_list = util.get_answer_list_from_user_guess_string(config_dict, CONST_MAXBOT_ANSWER_ONLINE_FILE)

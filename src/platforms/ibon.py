@@ -3397,7 +3397,8 @@ async def nodriver_ibon_card_vaildate(tab, config_dict):
     has_card_prefix = bool(config_dict.get("contact", {}).get("credit_card_prefix", "").strip())
     guess = ""
     if not has_card_prefix:
-        guess_string = config_dict.get("advanced", {}).get("user_guess_string", "").strip()
+        answer_config = config_views.answer_view(config_dict)
+        guess_string = answer_config["user_guess_string"].strip()
         if guess_string:
             guess = guess_string.split(",")[0].strip().strip('"')
 
@@ -3600,7 +3601,8 @@ async def nodriver_ibon_verification_question(tab, fail_list, config_dict):
 
             # Step 3: If no user dictionary and auto_guess enabled, try auto-guess
             if len(answer_list) == 0:
-                if config_dict["advanced"].get("auto_guess_options", False):
+                answer_config = config_views.answer_view(config_dict)
+                if answer_config["auto_guess_options"]:
                     answer_list = util.get_answer_list_from_question_string(None, question_text, config_dict)
                     debug.log(f"[IBON VERIFY] Auto-guessed answers: {answer_list}")
 
