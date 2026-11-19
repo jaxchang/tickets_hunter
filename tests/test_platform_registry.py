@@ -108,15 +108,13 @@ class MatcherTableTest(unittest.TestCase):
         self.assertDispatches("https://www.ticketmaster.com/event/1", ["tixcraft"])
         self.assertDispatches("https://ticketmaster.sg/event/1", ["tixcraft"])
 
-    def test_famiticket_url_also_matches_kham(self):
-        # Substring collision in the historical semantics: Kham's
-        # "ticket.com.tw" pattern is a substring of "famiticket.com.tw",
-        # so the old if-chain ran Kham's main on FamiTicket pages too
-        # (run-all, no elif). Pinned as-is; changing it is a behaviour
-        # decision for a separate issue.
-        self.assertDispatches(
-            "https://www.famiticket.com.tw/Home/", ["famiticket", "kham"]
-        )
+    def test_famiticket_url_matches_only_famiticket(self):
+        # Issue #50: Kham's "ticket.com.tw" used to be a substring
+        # pattern, and "famiticket.com.tw" contains it, so Kham's main
+        # also ran on FamiTicket pages. The kham entry now matches
+        # ticket.com.tw by host, so FamiTicket pages dispatch only to
+        # famiticket.
+        self.assertDispatches("https://www.famiticket.com.tw/Home/", ["famiticket"])
 
     def test_single_pattern_platforms(self):
         self.assertDispatches("https://ticket.ibon.com.tw/Activity/1", ["ibon"])
@@ -128,6 +126,7 @@ class MatcherTableTest(unittest.TestCase):
     def test_kham_family(self):
         self.assertDispatches("https://kham.com.tw/application/UTK02/", ["kham"])
         self.assertDispatches("https://www.ticket.com.tw/application/", ["kham"])
+        self.assertDispatches("https://ticket.com.tw/application/", ["kham"])
         self.assertDispatches("https://tickets.udnfunlife.com/application/", ["kham"])
 
     def test_kham_utk_rwd_tenant_host(self):

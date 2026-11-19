@@ -35,10 +35,10 @@ class KhamSurfaceTest(unittest.TestCase):
         self.assertIs(kham._state, kham_shared._state)
         self.assertIs(kham_rwd._state, kham_shared._state)
 
-    def test_entry_points_at_facade_main_and_shared_matcher(self):
+    def test_entry_points_at_facade_main_and_matcher(self):
         entry = kham.PLATFORM_ENTRIES[0]
         self.assertIs(entry.handler, kham.nodriver_kham_main)
-        self.assertIs(entry.match_fn, kham_shared.is_utk_rwd_url)
+        self.assertIs(entry.match_fn, kham._kham_match_url)
 
     def test_moved_names_are_the_same_objects(self):
         self.assertIs(kham.nodriver_kham_captcha, kham_shared.nodriver_kham_captcha)
