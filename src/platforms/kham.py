@@ -2747,12 +2747,25 @@ async def nodriver_kham_main(ctx):
 # ====================================================================================
 
 
+def _kham_match_url(url):
+    """Dispatch matcher for the kham entry (issue #50).
+
+    "ticket.com.tw" is matched by host, not by substring: as a substring
+    it also matches famiticket.com.tw, which made the kham main run on
+    FamiTicket pages too.
+    """
+    if is_utk_rwd_url(url):
+        return True
+    host = urllib.parse.urlparse(url).hostname or ""
+    return host == "ticket.com.tw" or host.endswith(".ticket.com.tw")
+
+
 # Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 PLATFORM_ENTRIES = [
     PlatformEntry(
         "kham",
         nodriver_kham_main,
-        patterns=("kham.com.tw", "ticket.com.tw", "tickets.udnfunlife.com"),
-        match_fn=is_utk_rwd_url,
+        patterns=("kham.com.tw", "tickets.udnfunlife.com"),
+        match_fn=_kham_match_url,
     ),
 ]
