@@ -14,9 +14,17 @@ one pipeline stage's config questions in one place:
   decided separately -- a view migration never silently unifies it.
 - Views are cut per shared pipeline stage, not per platform. Platform
   sections and platform decisions stay in the platform modules.
+
+``reload_interval`` is the one view whose answer is deliberately not
+deterministic: with the range setting on, each call draws a fresh
+value inside the configured range. That draw is the setting's own
+semantics (it used to live in ``util.get_reload_interval``), not
+caching or hidden state.
 """
 
-__all__ = ["date_view"]
+import random
+
+__all__ = ["date_view", "reload_interval"]
 
 
 def date_view(config_dict):
@@ -43,3 +51,35 @@ def date_view(config_dict):
         "keyword_exclude": config_dict.get("keyword_exclude"),
         "fallback": config_dict.get("date_auto_fallback", False),
     }
+
+
+def reload_interval(config_dict, default=0):
+    """Return the seconds to wait before the next auto reload.
+
+    With the range setting on, auto_reload_page_interval is the lower
+    bound and auto_reload_page_interval_max the upper bound, and each
+    call draws a new value. Anything that is not a valid range returns
+    the interval as is, so 0 still means reload disabled and a
+    hand-edited value behaves as before.
+
+    Args:
+        config_dict: Configuration dictionary
+        default: Value used when auto_reload_page_interval is missing
+
+    Returns:
+        The wait in seconds, or the configured value unchanged
+    """
+    advanced = config_dict.get("advanced", {})
+    interval = advanced.get("auto_reload_page_interval", default)
+    if not advanced.get("auto_reload_page_interval_range", False):
+        return interval
+
+    upper = advanced.get("auto_reload_page_interval_max", 0)
+    for value in (interval, upper):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return interval
+    if not 0 < interval < upper:
+        return interval
+
+    # Clamp because rounding can step outside a very narrow range.
+    return max(interval, min(upper, round(random.uniform(interval, upper), 2)))

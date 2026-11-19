@@ -7,6 +7,7 @@ import json
 import random
 
 import util
+import config_views
 from nodriver_common import (
     PageState,
     CONST_FROM_TOP_TO_BOTTOM,
@@ -368,7 +369,7 @@ async def nodriver_fami_date_auto_select(tab, config_dict, last_activity_url):
             if auto_reload_coming_soon_page_enable:
                 debug.log("[FAMI DATE] Date list is empty, triggering auto-reload")
 
-                auto_reload_page_interval = util.get_reload_interval(config_dict)
+                auto_reload_page_interval = config_views.reload_interval(config_dict)
                 if auto_reload_page_interval > 0:
                     await asyncio.sleep(auto_reload_page_interval)
 
@@ -712,7 +713,7 @@ async def nodriver_fami_home_auto_select(tab, config_dict, last_activity_url):
             is_area_selected = await nodriver_fami_date_to_area(tab, config_dict, last_activity_url)
 
             if not is_area_selected:
-                auto_reload_interval = util.get_reload_interval(config_dict, default=5)
+                auto_reload_interval = config_views.reload_interval(config_dict, default=5)
                 if auto_reload_interval > 0:
                     debug.log(f"[FAMI HOME] No area selected, waiting {auto_reload_interval}s before retry...")
                     await tab.sleep(auto_reload_interval)

@@ -865,7 +865,7 @@ async def nodriver_ticketmaster_date_auto_select(tab, config_dict):
             # second while waiting for a sale to open -- exactly what trips
             # Ticketmaster's EPS block (issue #378) -- while sleeping for the
             # interval froze every other check for its whole duration.
-            reload_interval = util.get_reload_interval(config_dict)
+            reload_interval = config_views.reload_interval(config_dict)
             previous_until = _state.get("ticketmaster_date_reload_cooldown_until", 0)
             should_reload, cooldown_until = util.advance_reload_cooldown(
                 time.time(), previous_until, reload_interval)
@@ -971,7 +971,7 @@ async def nodriver_ticketmaster_area_auto_select(tab, config_dict, zone_info):
             # Non-blocking cooldown paces the reload (issue #3): passes inside
             # the interval return at once instead of sleeping through it.
             try:
-                reload_interval = util.get_reload_interval(config_dict)
+                reload_interval = config_views.reload_interval(config_dict)
                 previous_until = _state.get("ticketmaster_area_reload_cooldown_until", 0)
                 should_reload, cooldown_until = util.advance_reload_cooldown(
                     time.time(), previous_until, reload_interval)
@@ -1855,7 +1855,7 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
     if not is_date_clicked and _is_page_reload_enabled(config_dict, debug, "DATE SELECT"):
         # Non-blocking cooldown (issue #3): record the deadline and return,
         # so the main loop keeps re-checking the page while waiting.
-        interval = util.get_reload_interval(config_dict)
+        interval = config_views.reload_interval(config_dict)
         previous_until = _state.get("date_reload_cooldown_until", 0)
         should_reload, cooldown_until = util.advance_reload_cooldown(
             time.time(), previous_until, interval)
@@ -2013,7 +2013,7 @@ async def nodriver_tixcraft_area_auto_select(tab, url, config_dict):
     # deadline and return, so the main loop keeps re-checking the page
     # while waiting instead of sleeping through the interval)
     if is_need_refresh and _is_page_reload_enabled(config_dict, debug, "AREA SELECT"):
-        interval = util.get_reload_interval(config_dict)
+        interval = config_views.reload_interval(config_dict)
         previous_until = _state.get("area_reload_cooldown_until", 0)
         should_reload, cooldown_until = util.advance_reload_cooldown(
             time.time(), previous_until, interval)
@@ -2599,7 +2599,7 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
         debug.log("[TICKET SELECT] Ticket count unavailable, reloading page to retry...")
         try:
             # Wait based on auto_reload_page_interval setting
-            interval = util.get_reload_interval(config_dict)
+            interval = config_views.reload_interval(config_dict)
             if interval > 0:
                 await asyncio.sleep(interval)
             await tab.reload()
@@ -3328,7 +3328,7 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
 
         # Issue #188: Set cooldown timestamp instead of async sleep (event handler doesn't block main loop)
         if is_sold_out_alert and dismiss_success:
-            interval = util.get_reload_interval(config_dict)
+            interval = config_views.reload_interval(config_dict)
             if interval > 0:
                 cooldown_until = time.time() + interval
                 _state["sold_out_cooldown_until"] = cooldown_until
@@ -3519,7 +3519,7 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
                             _state["ticketmaster_phase"] = "area_select"
                             _state["area_retry_count"] = 0
                             try:
-                                reload_interval = util.get_reload_interval(config_dict)
+                                reload_interval = config_views.reload_interval(config_dict)
                                 if reload_interval > 0:
                                     await sleep_with_pause_check(tab, reload_interval, config_dict)
                                 await tab.reload()

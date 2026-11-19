@@ -13,6 +13,7 @@ except Exception:
     pass
 
 import util
+import config_views
 from nodriver_common import (
     PageState,
     check_and_handle_pause,
@@ -2016,7 +2017,7 @@ async def nodriver_funone_main(tab, url, config_dict):
 
                 # Read here, not inside the no_map branch: the sold-out path in
                 # the non-no_map branch below uses it too.
-                auto_reload_interval = util.get_reload_interval(config_dict, default=2)
+                auto_reload_interval = config_views.reload_interval(config_dict, default=2)
 
                 # Check if on purchase_choose_ticket_no_map page - apply sold-out detection
                 if '/purchase_choose_ticket_no_map/' in url:

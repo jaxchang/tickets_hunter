@@ -15,6 +15,7 @@ from zendriver import cdp
 from zendriver.core.keys import SpecialKeys
 
 import util
+import config_views
 from nodriver_common import (
     PageState,
     nodriver_check_modal_dialog_popup,
@@ -631,7 +632,7 @@ async def nodriver_hkticketing_date_auto_select(tab, config_dict, fail_list):
         if auto_reload_coming_soon_page:
             debug.log("[HKTICKETING DATE] Page not ready, reloading...")
 
-            reload_interval = util.get_reload_interval(config_dict)
+            reload_interval = config_views.reload_interval(config_dict)
             if reload_interval > 0:
                 await asyncio.sleep(reload_interval)
 
@@ -2359,7 +2360,7 @@ async def nodriver_hkticketing_url_redirect(tab, url, config_dict):
             except Exception as exc:
                 pass
 
-            reload_interval = util.get_reload_interval(config_dict)
+            reload_interval = config_views.reload_interval(config_dict)
             if reload_interval > 0:
                 await asyncio.sleep(reload_interval)
 
@@ -2435,7 +2436,7 @@ async def nodriver_hkticketing_content_refresh(tab, url, config_dict):
             except Exception as exc:
                 pass
 
-            reload_interval = util.get_reload_interval(config_dict)
+            reload_interval = config_views.reload_interval(config_dict)
             if reload_interval > 0:
                 await asyncio.sleep(reload_interval)
 

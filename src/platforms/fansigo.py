@@ -11,6 +11,7 @@ from urllib.parse import quote, unquote
 from zendriver import cdp
 
 import util
+import config_views
 from nodriver_common import PageState, check_and_handle_pause, play_sound_while_ordering, sleep_with_pause_check
 from nodriver_common import CONST_FROM_TOP_TO_BOTTOM
 
@@ -887,7 +888,7 @@ async def _fansigo_reload_show_page(tab, config_dict, debug):
     if not config_dict.get("tixcraft", {}).get("auto_reload_coming_soon_page", False):
         return
 
-    interval = util.get_reload_interval(config_dict)
+    interval = config_views.reload_interval(config_dict)
     if not isinstance(interval, (int, float)) or interval <= 0:
         return
 
