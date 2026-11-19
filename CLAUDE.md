@@ -66,7 +66,9 @@ python build_scripts/build_local.py             # 打包並驗證能啟動（改
 
 本 fork 自 #5 起在 repo 內維護 `tests/` 與 CI（`.github/workflows/ci.yml`：對 PR 與 main
 執行全部 `src/` 的 `py_compile` 與單元測試），與上游維護者「測試另外維護」的慣例不同，
-是 fork 擁有者的決定。平台邏輯的改動仍請在 PR 說明實際跑過哪個活動、走到哪一頁；
+是 fork 擁有者的決定。handler 層測試用 `tests/fake_tab.py` 的 `FakeTab` 假 tab 驅動
+（範例：`tests/test_tixcraft_area_cooldown.py`）；寫 handler 測試前先讀該檔開頭的 seam
+規則（只做 stub、不模擬瀏覽器、setUp 清空模組 `_state`）。平台邏輯的改動仍請在 PR 說明實際跑過哪個活動、走到哪一頁；
 無法實機驗證時，必須在 PR 明確寫出，不得以單元測試或 harness 代替宣告。
 
 ---
