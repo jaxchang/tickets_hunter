@@ -74,6 +74,7 @@
 - **platforms/kham.py** - KHAM + ticket.com.tw + UDN + 中職售票（UTK RWD）平台（21 函式；#40 起拆分：共用層與 RWD 家族移至下列兄弟模組，本檔為 façade）
 - **platforms/kham_shared.py** - KHAM 家族共用層：`_state`、captcha 叢集、UTK tenant 查找、送出後對話框處理（#40，ADR 0006）
 - **platforms/kham_rwd.py** - 中職售票 UTK RWD 家族（中信兄弟/味全龍/富邦悍將＋籃球隊伍）（#40，ADR 0006）
+- **platforms/kham_seat.py** - KHAM 家族座位選擇流程（#42，ADR 0006）
 - **platforms/hkticketing.py** - HKTicketing + GalaxyMacau + Ticketek 平台（30 函式）
 
 ### 🌐 支援平台清單
@@ -253,8 +254,8 @@ KHAM 主流程 (含 UDN 售票網、Ticket.com.tw、中職售票 UTK RWD)，檔�
 ├── nodriver_kham_date_auto_select       # ✅ (Feature 003: Early Return + Fallback；#357 群組項目頁共用)
 ├── nodriver_kham_go_buy_redirect        # ✅
 ├── nodriver_kham_check_realname_dialog  # ✅
-├── nodriver_kham_allow_not_adjacent_seat # ✅
-├── nodriver_kham_switch_to_auto_seat    # ✅
+├── nodriver_kham_allow_not_adjacent_seat # ✅（kham_seat）
+├── nodriver_kham_switch_to_auto_seat    # ✅（kham_seat）
 ├── nodriver_kham_check_captcha_text_error # ✅
 ├── nodriver_kham_product                # ✅
 ├── nodriver_kham_area_auto_select       # ✅ (Feature 003: Early Return + Fallback)
@@ -273,7 +274,7 @@ KHAM 主流程 (含 UDN 售票網、Ticket.com.tw、中職售票 UTK RWD)，檔�
 ├── nodriver_utk_rwd_login               # ✅ 登入彈窗 + OCR
 ├── nodriver_utk_rwd_assign_ticket_number # ✅ UTK0202 選票種列並設定張數
 │
-├── 座位選擇模組 (KHAM/UDN/Ticket.com.tw/中職售票 共用)
+├── 座位選擇模組 (KHAM/UDN/Ticket.com.tw/中職售票 共用)，檔案：src/platforms/kham_seat.py
 ├── nodriver_kham_seat_main              # ✅ 座位選擇主流程
 ├── nodriver_kham_seat_auto_select       # ✅ 座位自動選擇核心（rwd=True：中職空位判斷；舞台上/下依座位圖位置排序）
 ├── nodriver_kham_seat_type_auto_select  # ✅ 票種自動選擇
