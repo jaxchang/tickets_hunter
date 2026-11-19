@@ -513,10 +513,11 @@ async def nodriver_funone_area_auto_select(tab, url, config_dict):
     debug = util.create_debug_logger(config_dict)
 
     # Get area keyword from config
-    area_keyword = config_dict.get("area_auto_select", {}).get("area_keyword", "")
-    auto_select_mode = config_dict.get("area_auto_select", {}).get("mode", "random")
-    keyword_exclude = config_dict.get("keyword_exclude", "")
-    area_auto_fallback = config_dict.get("area_auto_fallback", False)
+    area_config = config_views.area_view(config_dict)
+    area_keyword = area_config["keyword"]
+    auto_select_mode = area_config["mode"]
+    keyword_exclude = area_config["keyword_exclude"]
+    area_auto_fallback = area_config["fallback"]
 
     # Only print area selection config once
     area_config_key = f"{area_keyword}_{auto_select_mode}"
@@ -727,7 +728,8 @@ async def nodriver_funone_check_sold_out(tab, config_dict):
     """
     debug = util.create_debug_logger(config_dict)
     ticket_number = config_dict.get("ticket_number", 2)
-    area_keyword = config_dict.get("area_auto_select", {}).get("area_keyword", "")
+    area_config = config_views.area_view(config_dict)
+    area_keyword = area_config["keyword"]
 
     # Parse keywords
     keywords = []
@@ -960,9 +962,10 @@ async def nodriver_funone_assign_ticket_number(tab, config_dict):
     """
     debug = util.create_debug_logger(config_dict)
     ticket_number = config_dict.get("ticket_number", 2)
-    area_keyword = config_dict.get("area_auto_select", {}).get("area_keyword", "")
-    keyword_exclude = config_dict.get("keyword_exclude", "")
-    area_auto_fallback = config_dict.get("area_auto_fallback", False)
+    area_config = config_views.area_view(config_dict)
+    area_keyword = area_config["keyword"]
+    keyword_exclude = area_config["keyword_exclude"]
+    area_auto_fallback = area_config["fallback"]
 
     # Parse keywords
     keywords = []

@@ -699,8 +699,8 @@ async def nodriver_fansigo_area_auto_select(tab, url, config_dict) -> int:
     debug = util.create_debug_logger(config_dict)
 
     # Check if area auto select is enabled
-    area_auto_select = config_dict.get("area_auto_select", {})
-    if not area_auto_select.get("enable", True):
+    area_config = config_views.area_view(config_dict)
+    if not area_config["enable"]:
         return 0
 
     # Only process show pages
@@ -718,7 +718,7 @@ async def nodriver_fansigo_area_auto_select(tab, url, config_dict) -> int:
         return -1
 
     # Apply exclude keywords
-    keyword_exclude = config_dict.get("keyword_exclude", "")
+    keyword_exclude = area_config["keyword_exclude"]
     if keyword_exclude:
         filtered_sections = []
         for section in available_sections:
@@ -733,7 +733,7 @@ async def nodriver_fansigo_area_auto_select(tab, url, config_dict) -> int:
         return -1
 
     # Use keyword matching
-    area_keyword = area_auto_select.get("area_keyword", "")
+    area_keyword = area_config["keyword"]
 
     if area_keyword:
         matched = fansigo_match_by_keyword(available_sections, area_keyword, "name")
@@ -747,15 +747,15 @@ async def nodriver_fansigo_area_auto_select(tab, url, config_dict) -> int:
         debug.log(f"[FANSIGO] Section matched by keyword: {matched['name']}")
     elif not area_keyword:
         # No keyword set = accept all, select by mode
-        mode = area_auto_select.get("mode", CONST_FROM_TOP_TO_BOTTOM)
+        mode = area_config["mode"]
         target_section = util.get_target_item_from_matched_list(available_sections, mode)
         if target_section:
             debug.log(f"[FANSIGO] No keyword set, selecting by mode: {target_section['name']}")
     else:
         # Keyword set but no match - check fallback
-        area_auto_fallback = config_dict.get("area_auto_fallback", False)
+        area_auto_fallback = area_config["fallback"]
         if area_auto_fallback:
-            mode = area_auto_select.get("mode", CONST_FROM_TOP_TO_BOTTOM)
+            mode = area_config["mode"]
             target_section = util.get_target_item_from_matched_list(available_sections, mode)
             if target_section:
                 debug.log(f"[FANSIGO] Using fallback, selecting: {target_section['name']}")

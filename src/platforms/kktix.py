@@ -958,7 +958,8 @@ async def nodriver_kktix_assign_ticket_number(tab, config_dict, kktix_area_keywo
     debug = util.create_debug_logger(config_dict)
 
     ticket_number_str = str(config_dict["ticket_number"])
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
 
     # Track selection type: empty keyword means fallback selection
     is_fallback_selection = (kktix_area_keyword == "")
@@ -2316,15 +2317,16 @@ async def nodriver_kktix_reg_new_main(tab, config_dict, fail_list, played_sound_
         _state["reg_execution_count"] = _state.get("reg_execution_count", 0) + 1
         debug.log(f"[KKTIX REG] Execution count: {_state['reg_execution_count']}")
 
+    area_config = config_views.area_view(config_dict)
     # T010: Check main switch (defensive programming)
-    if not config_dict["area_auto_select"]["enable"]:
+    if not area_config["enable"]:
         debug.log("[KKTIX AREA SELECT] Main switch is disabled, skipping area selection")
         return fail_list, played_sound_ticket
 
     # read config.
-    area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-    area_auto_fallback = config_dict.get('area_auto_fallback', False)  # T021: Safe access for new field (default: strict mode)
+    area_keyword = area_config["keyword"].strip()
+    auto_select_mode = area_config["mode"]
+    area_auto_fallback = area_config["fallback"]
 
     # part 1: check div.
     registrationsNewApp_div = None

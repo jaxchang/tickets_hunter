@@ -154,5 +154,51 @@ class ReloadIntervalViewTest(unittest.TestCase):
         self.assertEqual(config_views.reload_interval(config), 9)
 
 
+class AreaViewTest(unittest.TestCase):
+    def test_full_config_maps_each_field(self):
+        config = {
+            "area_auto_select": {
+                "enable": False,
+                "mode": "from bottom to top",
+                "area_keyword": "搖滾",
+            },
+            "keyword_exclude": "包廂",
+            "area_auto_fallback": True,
+        }
+        view = config_views.area_view(config)
+        self.assertEqual(view["enable"], False)
+        self.assertEqual(view["mode"], "from bottom to top")
+        self.assertEqual(view["keyword"], "搖滾")
+        self.assertEqual(view["keyword_exclude"], "包廂")
+        self.assertEqual(view["fallback"], True)
+
+    def test_missing_section_yields_canonical_defaults(self):
+        view = config_views.area_view({})
+        self.assertEqual(
+            view,
+            {
+                "enable": True,
+                "mode": "random",
+                "keyword": "",
+                "keyword_exclude": "",
+                "fallback": False,
+            },
+        )
+
+    def test_keyword_is_returned_raw(self):
+        config = {"area_auto_select": {"area_keyword": "  搖滾  "}}
+        self.assertEqual(config_views.area_view(config)["keyword"], "  搖滾  ")
+
+    def test_empty_mode_falls_back_to_random(self):
+        config = {"area_auto_select": {"mode": ""}}
+        self.assertEqual(config_views.area_view(config)["mode"], "random")
+
+    def test_view_is_computed_fresh_from_current_dict(self):
+        config = {"area_auto_select": {"mode": "random"}}
+        self.assertEqual(config_views.area_view(config)["mode"], "random")
+        config["area_auto_select"]["mode"] = "from bottom to top"
+        self.assertEqual(config_views.area_view(config)["mode"], "from bottom to top")
+
+
 if __name__ == "__main__":
     unittest.main()

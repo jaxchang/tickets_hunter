@@ -671,13 +671,14 @@ async def nodriver_kham_area_auto_select(tab, domain_name, config_dict, area_key
         return False, False, False
 
     debug = util.create_debug_logger(config_dict)
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
 
     # Feature 003: Safe access for conditional fallback switch
-    area_auto_fallback = config_dict.get('area_auto_fallback', False) and allow_fallback
+    area_auto_fallback = area_config["fallback"] and allow_fallback
     # Fallback is on in settings but held for a later keyword: a miss here just
     # moves on to the next keyword, with no reload.
-    fallback_deferred = config_dict.get('area_auto_fallback', False) and not allow_fallback
+    fallback_deferred = area_config["fallback"] and not allow_fallback
 
     # NOTE: area_keyword_item is already a SINGLE keyword string: the caller
     # nodriver_kham_performance splits area_keyword with util.parse_keyword_string_to_array
@@ -1075,7 +1076,8 @@ async def nodriver_kham_performance(tab, config_dict, ocr, domain_name, model_na
     is_price_assign_by_bot = False
     is_captcha_sent = False
 
-    area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
+    area_config = config_views.area_view(config_dict)
+    area_keyword = area_config["keyword"].strip()
 
     debug.log("area_keyword:", area_keyword)
 
@@ -1210,6 +1212,7 @@ async def nodriver_kham_main(ctx):
     url = normalize_utk_rwd_url(url)
     domain_name = url.split('/')[2]
     debug = util.create_debug_logger(config_dict)
+    area_config = config_views.area_view(config_dict)
 
     if is_rwd and await nodriver_utk_rwd_ensure_login(tab, url, config_dict, ocr):
         return tab
@@ -1686,7 +1689,7 @@ async def nodriver_kham_main(ctx):
             if 'performance_price_area_id=' not in url.lower():
                 debug.log("[UDN AREA] Detected UDN UTK0204 area selection page")
 
-                if config_dict["area_auto_select"]["enable"]:
+                if area_config["enable"]:
                     # UDN uses nodriver_kham_performance for area selection
                     # UDN selector: table.status > tbody > tr.status_tr (verified via MCP)
                     model_name = "UTK0204"
@@ -1867,7 +1870,7 @@ async def nodriver_kham_main(ctx):
 
                 # Step 3: Area selection
                 # Get area keywords from config
-                area_keyword = config_dict["area_auto_select"]["area_keyword"].strip() if config_dict["area_auto_select"]["enable"] else ""
+                area_keyword = area_config["keyword"].strip() if area_config["enable"] else ""
 
                 # Find all ticket rows from VISIBLE tables only
                 # Each performance has its own table, controlled by parent .sd-target display
@@ -1927,7 +1930,7 @@ async def nodriver_kham_main(ctx):
                         debug.log(f"[UDN QUICK BUY] Area keywords parsed: {keywords}")
 
                         # Get keyword_exclude for filtering
-                        keyword_exclude = config_dict.get("keyword_exclude", "")
+                        keyword_exclude = area_config["keyword_exclude"]
 
                         for kw in keywords:
                             if target_ticket:
@@ -1955,13 +1958,13 @@ async def nodriver_kham_main(ctx):
 
                     # If no keyword match, apply fallback logic based on area_auto_fallback and mode
                     if not target_ticket:
-                        area_auto_fallback = config_dict.get("area_auto_fallback", False)
-                        area_mode = config_dict["area_auto_select"].get("mode", "from top to bottom")
+                        area_auto_fallback = area_config["fallback"]
+                        area_mode = area_config["mode"]
 
                         if area_auto_fallback:
                             # Filter available tickets (not disabled, has fastcode, respecting keyword_exclude)
                             available_tickets = []
-                            keyword_exclude = config_dict.get("keyword_exclude", "")
+                            keyword_exclude = area_config["keyword_exclude"]
                             for ticket in tickets:
                                 if ticket.get('isDisabled') or not ticket.get('fastcode'):
                                     continue
@@ -2099,7 +2102,7 @@ async def nodriver_kham_main(ctx):
                 except:
                     pass
 
-            if config_dict["area_auto_select"]["enable"]:
+            if area_config["enable"]:
                 # Switch to auto seat
                 if "ticket.com.tw" in url:
                     # Ticket.com.tw uses different selector
@@ -2456,7 +2459,7 @@ async def nodriver_kham_main(ctx):
                     # Build exclude keywords list for JavaScript
                     exclude_keywords = []
                     if "keyword_exclude" in config_dict:
-                        keyword_exclude_str = config_dict["keyword_exclude"].strip()
+                        keyword_exclude_str = area_config["keyword_exclude"].strip()
                         try:
                             # Try JSON format first (standard storage format)
                             # Example: "\"輪椅\",\"身障\"" → ["輪椅", "身障"]

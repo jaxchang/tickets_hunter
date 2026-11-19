@@ -889,10 +889,11 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
 async def nodriver_ticketplus_unified_select(tab, config_dict, area_keyword):
     """TicketPlus unified selector - language-independent ticket type/area selection."""
     debug = util.create_debug_logger(config_dict)
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-    area_auto_fallback = config_dict.get('area_auto_fallback', False)
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
+    area_auto_fallback = area_config["fallback"]
     ticket_number = config_dict["ticket_number"]
-    keyword_exclude = config_dict.get("keyword_exclude", "")
+    keyword_exclude = area_config["keyword_exclude"]
 
     debug.log(f"Unified selector started - keyword: {area_keyword}, tickets: {ticket_number}")
 
@@ -1772,7 +1773,8 @@ async def nodriver_ticketplus_order(tab, config_dict, ocr, Captcha_Browser):
 
     is_price_assign_by_bot = False
 
-    area_keyword_raw = config_dict.get("area_auto_select", {}).get("area_keyword", "").strip()
+    area_config = config_views.area_view(config_dict)
+    area_keyword_raw = area_config["keyword"].strip()
 
     keyword_array = util.parse_keyword_string_to_array(area_keyword_raw)
 
