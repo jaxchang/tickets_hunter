@@ -488,7 +488,6 @@ Debug 輸出
 ├── format_config_keyword_for_json
 ├── format_keyword_string
 ├── format_quota_string
-├── full2half
 ├── find_between
 ├── remove_html_tags
 ├── find_continuous_number
@@ -499,7 +498,6 @@ Debug 輸出
 
 中文數字處理
 ├── get_chinese_numeric
-├── synonym_dict
 ├── chinese_numeric_to_int
 └── normalize_chinese_numeric
 
@@ -536,32 +534,20 @@ OCR 與驗證碼
 └── force_remove_file
 
 系統工具
-├── get_ip_address
 ├── is_connectable
-├── is_arm
 ├── get_app_root
 ├── set_instance_id                       # 多開：設定本行程 instance id
 ├── get_instance_id
 ├── get_instance_state_path               # 多開：解析 per-instance 狀態檔路徑
-├── t_or_f
-├── get_brave_bin_path
 ├── launch_maxbot                         # 支援 instance= 參數（多開序號實例）
-├── parse_nodriver_result
-└── get_token
-
-KKTIX 專用
-├── kktix_get_registerStatus
-└── kktix_get_event_code
+└── parse_nodriver_result
 
 Cloudflare 模板匹配
 ├── get_cf_template_paths
 └── verify_cf_with_templates
-
-iBon Livemap
-├── ibon_fetch_and_parse_livemap
-├── ibon_livemap_select_area
-└── ibon_build_skip_url
 ```
+
+iBon Livemap 三函式（`ibon_fetch_and_parse_livemap`、`ibon_livemap_select_area`、`ibon_build_skip_url`）已搬移至 `platforms/ibon.py`（#18）。
 
 **機制索引**：
 - 設定熱重載（hot-reload）：`reload_config`（nodriver_tixcraft.py），詳見 [14-hot-reload.md](../03-mechanisms/14-hot-reload.md)

@@ -10,6 +10,7 @@ import json
 import os
 import random
 import re
+import requests
 import time
 import traceback
 import webbrowser
@@ -3938,6 +3939,125 @@ async def nodriver_tour_ibon_checkout(tab, config_dict):
 
     return is_form_submitted
 
+def ibon_fetch_and_parse_livemap(performance_id, debug=None):
+    """Fetch ibon live.map from Azure CDN and parse area data.
+
+    Returns list of area dicts or empty list on failure.
+    Each dict: page_name, performance_id, area_id, group_id,
+               area_name, price (int), remaining (int).
+    """
+    areas = []
+    url = f"{util.IBON_LIVEMAP_CDN_BASE}/{performance_id}/1_{performance_id}_live.map"
+
+    try:
+        resp = requests.get(url, headers={"User-Agent": util.USER_AGENT}, timeout=3)
+        if resp.status_code != 200:
+            if debug:
+                debug.log(f"[IBON LIVEMAP] HTTP {resp.status_code} for {performance_id}")
+            return areas
+        resp.encoding = 'utf-8'
+        content = resp.text
+    except Exception as exc:
+        if debug:
+            debug.log(f"[IBON LIVEMAP] Request failed: {exc}")
+        return areas
+
+    send_pattern = r"Send\('(\d+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']*)'\)"
+    title_pattern = r'title="[^:]+:([^"]*?)\s+\u7968\u50f9[\uff1a:]([^\s]+)\s+\u5c1a\u9918[\uff1a:](\d+)"'
+
+    for area_match in re.finditer(r'<area[^>]+>', content):
+        area_html = area_match.group()
+        send_match = re.search(send_pattern, area_html)
+        title_match = re.search(title_pattern, area_html)
+        if send_match and title_match:
+            try:
+                price_str = title_match.group(2).replace(',', '')
+                price = int(price_str)
+                remaining = int(title_match.group(3))
+            except (ValueError, IndexError):
+                continue
+
+            areas.append({
+                'page_name': send_match.group(1),
+                'performance_id': send_match.group(2),
+                'area_id': send_match.group(3),
+                'group_id': send_match.group(4),
+                'area_name': title_match.group(1).strip(),
+                'price': price,
+                'remaining': remaining,
+            })
+
+    if debug:
+        debug.log(f"[IBON LIVEMAP] Parsed {len(areas)} areas for {performance_id}")
+
+    return areas
+
+
+def ibon_livemap_select_area(livemap_areas, config_dict, area_keyword_item, debug=None):
+    """Select best area from live.map data based on config filters.
+
+    Applies: remaining >= ticket_number, keyword_exclude, keyword match,
+    then auto_select_mode (top/bottom/center/random).
+
+    Returns selected area dict or None.
+    """
+    ticket_number = config_dict["ticket_number"]
+    auto_select_mode = config_dict["area_auto_select"]["mode"]
+
+    matched = []
+    for area in livemap_areas:
+        area_label = f"{area['area_name']} | price={area['price']} | remaining={area['remaining']}"
+
+        if area['remaining'] < ticket_number:
+            if debug:
+                debug.log(f"[IBON LIVEMAP] {area_label} -> skip: insufficient (need {ticket_number})")
+            continue
+
+        row_text = area['area_name'] + ' ' + str(area['price'])
+
+        if util.reset_row_text_if_match_keyword_exclude(config_dict, row_text):
+            if debug:
+                debug.log(f"[IBON LIVEMAP] {area_label} -> skip: excluded by keyword")
+            continue
+
+        if area_keyword_item and len(area_keyword_item) > 0:
+            keyword_clean = area_keyword_item.strip()
+            if keyword_clean.startswith('"') and keyword_clean.endswith('"'):
+                keyword_clean = keyword_clean[1:-1]
+
+            sub_keywords = [kw.strip() for kw in keyword_clean.split(' ') if kw.strip()]
+            if not all(sub_kw in row_text for sub_kw in sub_keywords):
+                if debug:
+                    debug.log(f"[IBON LIVEMAP] {area_label} -> skip: keyword mismatch (need: {keyword_clean})")
+                continue
+
+        if debug:
+            debug.log(f"[IBON LIVEMAP] {area_label} -> MATCHED")
+        matched.append(area)
+
+    return util.get_target_item_from_matched_list(matched, auto_select_mode)
+
+
+def ibon_build_skip_url(area_dict):
+    """Build ibon direct navigation URL from live.map area data.
+
+    Two patterns based on page_name:
+      != '0205' -> UTK{page_name}_.aspx?...
+      == '0205' -> UTK0201_001.aspx?...
+    """
+    page_name = area_dict['page_name']
+    perf_id = area_dict['performance_id']
+    area_id = area_dict['area_id']
+    group_id = area_dict['group_id']
+
+    if page_name != '0205':
+        path = f"UTK{page_name}_.aspx?PERFORMANCE_ID={perf_id}&GROUP_ID={group_id}&PERFORMANCE_PRICE_AREA_ID={area_id}"
+    else:
+        path = f"UTK0201_001.aspx?PERFORMANCE_ID={perf_id}&GROUP_ID={group_id}&PERFORMANCE_PRICE_AREA_ID={area_id}"
+
+    return util.IBON_ORDER_BASE_URL + path
+
+
 async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
     # 函數開始時檢查暫停
     if await check_and_handle_pause(config_dict):
@@ -4239,7 +4359,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                             _state["livemap_last_attempt"] = None
                             livemap_debug.log(f"[IBON LIVEMAP] Area '{failed_area_name}' (id={failed_area_id}) sold out, added to blacklist ({len(failed_set)} total)")
 
-                        livemap_areas = util.ibon_fetch_and_parse_livemap(perf_id, livemap_debug)
+                        livemap_areas = ibon_fetch_and_parse_livemap(perf_id, livemap_debug)
 
                         if livemap_areas:
                             # Filter out previously failed areas (stale CDN data)
@@ -4260,14 +4380,14 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                                         livemap_kw_array = []
 
                                     for livemap_kw_item in livemap_kw_array:
-                                        livemap_selected = util.ibon_livemap_select_area(livemap_areas, config_dict, livemap_kw_item, debug=livemap_debug)
+                                        livemap_selected = ibon_livemap_select_area(livemap_areas, config_dict, livemap_kw_item, debug=livemap_debug)
                                         if livemap_selected:
                                             break
                                 else:
-                                    livemap_selected = util.ibon_livemap_select_area(livemap_areas, config_dict, area_keyword, debug=livemap_debug)
+                                    livemap_selected = ibon_livemap_select_area(livemap_areas, config_dict, area_keyword, debug=livemap_debug)
 
                             if livemap_selected:
-                                skip_url = util.ibon_build_skip_url(livemap_selected)
+                                skip_url = ibon_build_skip_url(livemap_selected)
                                 livemap_debug.log(f"[IBON LIVEMAP] Fast-path: {livemap_selected['area_name']} (remaining: {livemap_selected['remaining']}) -> {skip_url}")
                                 debug.log(f"[IBON LIVEMAP] Fast-path: {livemap_selected['area_name']} -> skip to next step")
                                 # Track this attempt so we can blacklist if it fails

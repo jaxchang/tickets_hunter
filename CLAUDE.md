@@ -166,6 +166,10 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common  ->  util / settings
   宣告並附理由（機制與取捨見 ADR 0002）；尚未遷移的模組仍須在改動中寫明成功時清、離開該頁面
   時清，或跨頁保留的理由。只寫入不清的狀態會在換頁後以過期或未過期的舊值影響新頁面
   （#3 的刷新冷卻曾因此跨頁殘留，靠 code review 才發現）。code review 時逐一核對。
+- **刪除 `util.py` 的函式前，必須先做完整可達性分析**：跨檔 grep 只找得到直接呼叫，會漏掉
+  util 內部呼叫鏈、`threading.Thread(target=...)` 這類非呼叫引用與 `_async` 包裝層的內層函式。
+  2026-11 的 util 瘦身（#18）曾以樸素掃描誤判 39 個函式無人呼叫，完整分析後真正無引用的
+  只有 9 個——猜答案簇與 discord/telegram 通知管線都差點被誤刪。刪除前逐一確認零引用才動手。
 - **改動任何頁面刷新行為前，先查 [刷新站點地圖](docs/03-mechanisms/11-reload-sites.md)** 分清
   輪詢刷新與復原刷新（定義見 `GLOSSARY.md`）：兩者的定速與清除規則不同，不要一起改。
 - **等待迴圈用 `sleep_with_pause_check` / `asyncio_sleep_with_pause_check`**（`nodriver_common.py`），
