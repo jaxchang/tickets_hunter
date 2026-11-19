@@ -58,11 +58,6 @@ CONST_UTK_RWD_DATE_ROW_SELECTORS = (
 CONST_UTK_RWD_AREA_ROW_SELECTOR = "table.f1 > tbody > tr.saleTr"
 
 
-# A free RWD seat has no class: it is a #TBL cell drawn with seat-empty_N.png
-# (N = facing) and titled with the seat name; taken seats get no title.
-CONST_UTK_RWD_EMPTY_SEAT_IMG = "seat-empty_"
-
-
 # Wrong OCR reads are expected, but a wrong password must not lock the account.
 CONST_UTK_RWD_LOGIN_MAX_TRIES = 5
 

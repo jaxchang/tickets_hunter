@@ -391,3 +391,14 @@ async def nodriver_kham_captcha(tab, config_dict, ocr, model_name):
             break
 
     return is_captcha_sent
+
+
+# Seconds to let a reloaded page settle before reading its DOM: tab.reload()
+# returns once CDP sends Page.reload, before the new document parses (~200ms on
+# UTK0204). Same 0.5s nodriver_kham_date_auto_select waits after its reload.
+CONST_KHAM_RELOAD_SETTLE = 0.5
+
+
+# A free RWD seat has no class: it is a #TBL cell drawn with seat-empty_N.png
+# (N = facing) and titled with the seat name; taken seats get no title.
+CONST_UTK_RWD_EMPTY_SEAT_IMG = "seat-empty_"

@@ -16,7 +16,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from platforms import kham, kham_rwd, kham_shared  # noqa: E402
+from platforms import kham, kham_rwd, kham_seat, kham_shared  # noqa: E402
 
 
 class KhamSurfaceTest(unittest.TestCase):
@@ -44,9 +44,28 @@ class KhamSurfaceTest(unittest.TestCase):
             kham_rwd.nodriver_utk_rwd_assign_ticket_number,
         )
 
+    def test_seat_cluster_lives_in_kham_seat(self):
+        self.assertIs(kham.nodriver_kham_seat_main, kham_seat.nodriver_kham_seat_main)
+        self.assertIs(
+            kham.nodriver_kham_seat_auto_select, kham_seat.nodriver_kham_seat_auto_select
+        )
+        self.assertIs(kham_seat._state, kham_shared._state)
+        self.assertIs(
+            kham_seat.CONST_UTK_RWD_EMPTY_SEAT_IMG,
+            kham_shared.CONST_UTK_RWD_EMPTY_SEAT_IMG,
+        )
+
+    def test_shared_constants_rehomed(self):
+        # Issue #42: the reload settle constant is shared by core and the
+        # seat flow; the empty-seat image marker is consumed by seat logic
+        # only, so both live in the shared layer now.
+        self.assertEqual(kham_shared.CONST_KHAM_RELOAD_SETTLE, 0.5)
+        self.assertEqual(kham.CONST_KHAM_RELOAD_SETTLE, kham_shared.CONST_KHAM_RELOAD_SETTLE)
+        self.assertFalse(hasattr(kham_rwd, "CONST_UTK_RWD_EMPTY_SEAT_IMG"))
+
     def test_siblings_do_not_import_the_facade(self):
         src_dir = os.path.join(os.path.dirname(__file__), "..", "src", "platforms")
-        for module in ("kham_shared", "kham_rwd"):
+        for module in ("kham_shared", "kham_rwd", "kham_seat"):
             with open(os.path.join(src_dir, module + ".py"), encoding="utf-8") as fh:
                 text = fh.read()
             self.assertNotIn("from platforms.kham import", text)

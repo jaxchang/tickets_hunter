@@ -55,6 +55,7 @@ a = Analysis(
         'platforms.kham',
         'platforms.kham_shared',
         'platforms.kham_rwd',
+        'platforms.kham_seat',
         'platforms.hkticketing',
         # Chrome downloader dependencies
         'requests',
