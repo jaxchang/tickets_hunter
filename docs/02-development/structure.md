@@ -71,7 +71,9 @@
 - **platforms/kktix.py** - KKTIX 平台（17 函式）
 - **platforms/tixcraft.py** - TixCraft + Ticketmaster 平台（27 函式）
 - **platforms/ibon.py** - iBon + Tour iBon 平台（25 函式）
-- **platforms/kham.py** - KHAM + ticket.com.tw + UDN + 中職售票（UTK RWD）平台（21 函式）
+- **platforms/kham.py** - KHAM + ticket.com.tw + UDN + 中職售票（UTK RWD）平台（21 函式；#40 起拆分：共用層與 RWD 家族移至下列兄弟模組，本檔為 façade）
+- **platforms/kham_shared.py** - KHAM 家族共用層：`_state`、captcha 叢集、UTK tenant 查找、送出後對話框處理（#40，ADR 0006）
+- **platforms/kham_rwd.py** - 中職售票 UTK RWD 家族（中信兄弟/味全龍/富邦悍將＋籃球隊伍）（#40，ADR 0006）
 - **platforms/hkticketing.py** - HKTicketing + GalaxyMacau + Ticketek 平台（30 函式）
 
 ### 🌐 支援平台清單
@@ -245,7 +247,7 @@ iBon 主流程
 
 #### 函式清單
 ```
-KHAM 主流程 (含 UDN 售票網、Ticket.com.tw、中職售票 UTK RWD)，檔案：src/platforms/kham.py
+KHAM 主流程 (含 UDN 售票網、Ticket.com.tw、中職售票 UTK RWD)，檔案：src/platforms/kham.py（façade；共用層在 kham_shared.py、RWD 家族在 kham_rwd.py，#40/ADR 0006）
 ├── nodriver_kham_main                   # ✅
 ├── nodriver_kham_login                  # ✅
 ├── nodriver_kham_date_auto_select       # ✅ (Feature 003: Early Return + Fallback；#357 群組項目頁共用)
@@ -256,13 +258,13 @@ KHAM 主流程 (含 UDN 售票網、Ticket.com.tw、中職售票 UTK RWD)，檔�
 ├── nodriver_kham_check_captcha_text_error # ✅
 ├── nodriver_kham_product                # ✅
 ├── nodriver_kham_area_auto_select       # ✅ (Feature 003: Early Return + Fallback)
-├── nodriver_kham_keyin_captcha_code     # ✅
-├── nodriver_kham_auto_ocr              # ✅
-├── nodriver_kham_captcha                # ✅
+├── nodriver_kham_keyin_captcha_code     # ✅（kham_shared）
+├── nodriver_kham_auto_ocr              # ✅（kham_shared）
+├── nodriver_kham_captcha                # ✅（kham_shared）
 ├── nodriver_kham_performance            # ✅
 │
-├── 中職售票 UTK RWD 模組 (中信兄弟/味全龍/富邦悍將＋籃球中信特攻/富邦勇士，尚未真站實測)
-├── is_utk_rwd_url                       # ✅ 依 CONST_UTK_RWD_TENANTS 判斷網域，主迴圈路由用
+├── 中職售票 UTK RWD 模組 (中信兄弟/味全龍/富邦悍將＋籃球中信特攻/富邦勇士，尚未真站實測)，檔案：src/platforms/kham_rwd.py
+├── is_utk_rwd_url                       # ✅ 依 CONST_UTK_RWD_TENANTS 判斷網域，主迴圈路由用（kham_shared）
 ├── normalize_utk_rwd_url                # ✅ RWD 網址改寫成 kham .aspx 版面，只供頁型判斷，不導航
 ├── parse_cookie_string                  # ✅ 解析貼上的整串 Cookie
 ├── filter_utk_rwd_cookies               # ✅ 只留名稱開頭屬於目前站台的 Cookie
