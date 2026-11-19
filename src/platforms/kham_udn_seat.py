@@ -10,6 +10,7 @@ import json
 import traceback
 
 import util
+import config_views
 
 
 async def nodriver_udn_seat_auto_select(tab, config_dict):
@@ -26,7 +27,7 @@ async def nodriver_udn_seat_auto_select(tab, config_dict):
     - 已售座位：background-image 包含 icon_chair_sale_1.gif
     """
     is_seat_assigned = False
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
 

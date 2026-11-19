@@ -24,7 +24,7 @@ caching or hidden state.
 
 import random
 
-__all__ = ["date_view", "reload_interval", "area_view"]
+__all__ = ["date_view", "reload_interval", "area_view", "ticket_number"]
 
 
 def date_view(config_dict):
@@ -81,6 +81,20 @@ def area_view(config_dict):
         "keyword_exclude": config_dict.get("keyword_exclude", ""),
         "fallback": config_dict.get("area_auto_fallback", False),
     }
+
+
+def ticket_number(config_dict, default=2):
+    """The count stage's ticket quantity (issue #56).
+
+    ``ticket_number`` is a top-level scalar with no section, so this
+    view is a scalar function like ``reload_interval``. The raw value
+    is returned untouched -- call sites that coerce it (``str()`` /
+    ``int()``) keep coercing. ``default`` is 2, the settings default;
+    the few handlers that historically defaulted to 1 pass
+    ``default=1`` explicitly so the divergence stays visible at the
+    call site instead of being silently unified.
+    """
+    return config_dict.get("ticket_number", default)
 
 
 def reload_interval(config_dict, default=0):

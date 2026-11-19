@@ -892,7 +892,7 @@ async def nodriver_ticketplus_unified_select(tab, config_dict, area_keyword):
     area_config = config_views.area_view(config_dict)
     auto_select_mode = area_config["mode"]
     area_auto_fallback = area_config["fallback"]
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
     keyword_exclude = area_config["keyword_exclude"]
 
     debug.log(f"Unified selector started - keyword: {area_keyword}, tickets: {ticket_number}")

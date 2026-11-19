@@ -573,7 +573,7 @@ async def nodriver_fami_ticket_select(tab, config_dict):
             return False
         debug.log(f"[FAMI TICKET] Found ticket: {title_text}")
 
-        ticket_number = config_dict.get("ticket_number", 2)
+        ticket_number = config_views.ticket_number(config_dict)
         debug.log(f"[FAMI TICKET] Selecting ticket number: {ticket_number}")
 
         select_result = await tab.evaluate(f'''

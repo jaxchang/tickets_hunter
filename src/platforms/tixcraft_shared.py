@@ -14,6 +14,7 @@ import random
 import time
 from zendriver import cdp
 import util
+import config_views
 from nodriver_common import (
     CONST_MAXBOT_ANSWER_ONLINE_FILE,
     CONST_OCR_CAPTCH_IMAGE_SOURCE_CANVAS,
@@ -446,7 +447,7 @@ async def nodriver_tixcraft_keyin_captcha_code(tab, answer="", auto_submit=False
 
                     if auto_submit:
                         # 提交前確認票券數量是否已設定
-                        ticket_number = str(config_dict.get("ticket_number", 2)) if config_dict else "2"
+                        ticket_number = str(config_views.ticket_number(config_dict)) if config_dict else "2"
                         allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False) if config_dict else False
                         # Issue #200/#201: some tixcraft events render multiple ticket
                         # quantity selects; inspect every visible select, not just the first.

@@ -732,7 +732,7 @@ async def nodriver_ticketmaster_assign_ticket_number(tab, config_dict):
     # Ticketmaster shares the TixCraft backend but has its own DOM, so it needs
     # its own allow_less_tickets handling (the TixCraft path lives in
     # nodriver_ticket_number_select_fill).
-    ticket_number = str(config_dict.get("ticket_number", 1))
+    ticket_number = str(config_views.ticket_number(config_dict, default=1))
     allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False)
 
     # Check current value (zendriver evaluate returns Python values directly)

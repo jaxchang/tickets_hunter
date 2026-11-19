@@ -702,7 +702,7 @@ async def nodriver_get_tixcraft_target_area(el, config_dict, area_keyword_item,
 
         # Check seat availability for multiple tickets
         allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False)
-        if config_dict["ticket_number"] > 1 and not allow_less_tickets:
+        if config_views.ticket_number(config_dict) > 1 and not allow_less_tickets:
             try:
                 if area_text_cache is not None:
                     font_text = area_text_cache[area_index - 1].get('fontText', '')
@@ -729,8 +729,8 @@ async def nodriver_get_tixcraft_target_area(el, config_dict, area_keyword_item,
                     seats_match = re.search(r'\d+', font_text)
                     if seats_match:
                         remaining = int(seats_match.group())
-                        if remaining < config_dict["ticket_number"]:
-                            debug.log(f"[AREA KEYWORD]   Insufficient seats (need {config_dict['ticket_number']}, only {remaining} available)")
+                        if remaining < config_views.ticket_number(config_dict):
+                            debug.log(f"[AREA KEYWORD]   Insufficient seats (need {config_views.ticket_number(config_dict)}, only {remaining} available)")
                             continue
                         debug.log(f"[AREA KEYWORD]   Sufficient seats available ({remaining})")
                     else:
@@ -1083,7 +1083,7 @@ async def nodriver_tixcraft_assign_ticket_number(tab, config_dict):
             current_value = util.parse_nodriver_result(current_value)
 
             if current_value and current_value != "0" and str(current_value).isnumeric():
-                target_ticket_number = int(config_dict.get("ticket_number", 1))
+                target_ticket_number = int(config_views.ticket_number(config_dict, default=1))
                 current_ticket_number = int(current_value)
                 allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False)
                 is_expected_count = current_ticket_number == target_ticket_number
@@ -1124,7 +1124,7 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
 
     # 檢查是否已經設定過票券數量（方案 B：狀態標記）
     current_url, _ = await nodriver_current_url(tab)
-    ticket_number = str(config_dict["ticket_number"])
+    ticket_number = str(config_views.ticket_number(config_dict))
     allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False)
     ticket_state_key = f"ticket_assigned_{current_url}_{ticket_number}_{int(allow_less_tickets)}"
 
@@ -1227,7 +1227,7 @@ async def nodriver_tixcraft_submit_without_captcha(tab, config_dict):
 
     # nodriver_tixcraft_ticket_main has already assigned the count, so only
     # confirm it here rather than duplicate keyin_captcha_code's reset.
-    ticket_number_js = json.dumps(str(config_dict.get("ticket_number", 2)))
+    ticket_number_js = json.dumps(str(config_views.ticket_number(config_dict)))
     allow_less_js = json.dumps(bool(
         config_dict.get("tixcraft", {}).get("allow_less_tickets", False)))
     ready = await tab.evaluate(f'''

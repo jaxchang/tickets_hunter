@@ -886,7 +886,7 @@ async def nodriver_hkticketing_ticket_number_auto_select(tab, config_dict):
     Auto select ticket number
     """
     debug = util.create_debug_logger(config_dict)
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
 
     is_ticket_number_assigned = False
     try:
@@ -1847,7 +1847,7 @@ async def nodriver_hkticketing_type02_ticket_number_select(tab, config_dict):
         bool: whether ticket number was set
     """
     debug = util.create_debug_logger(config_dict)
-    ticket_number = config_dict.get("ticket_number", 2)
+    ticket_number = config_views.ticket_number(config_dict)
 
     if ticket_number < 1:
         ticket_number = 1

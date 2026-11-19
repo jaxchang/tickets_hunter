@@ -381,7 +381,7 @@ async def _analyze_seat_quality(tab, config_dict):
                    'availableSeats': 可用座位 title 列表,
                    'totalSeats': 可用座位數}；JS 結果非 dict 時回傳 {}
     """
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
     allow_non_adjacent = config_dict["advanced"]["disable_adjacent_seat"]
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
@@ -464,7 +464,7 @@ async def _find_best_seats_in_row(tab, seat_analysis, config_dict):
     Args: seat_analysis 來自 _analyze_seat_quality 的結果
     Returns: dict 包含選定的座位集合
     """
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
     allow_non_adjacent = config_dict["advanced"]["disable_adjacent_seat"]
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
@@ -926,7 +926,7 @@ async def _execute_seat_selection(tab, seats_to_click, config_dict):
     Args: seats_to_click 來自 _find_best_seats_in_row 的座位集合
     Returns: bool 是否成功選擇座位
     """
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
 
@@ -1192,7 +1192,7 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
 
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
-    ticket_number = config_dict["ticket_number"]
+    ticket_number = config_views.ticket_number(config_dict)
 
     # Step 0: Check if seats are already selected (avoid duplicate selection)
     already_selected_count = 0

@@ -200,5 +200,22 @@ class AreaViewTest(unittest.TestCase):
         self.assertEqual(config_views.area_view(config)["mode"], "from bottom to top")
 
 
+class TicketNumberViewTest(unittest.TestCase):
+    def test_configured_value_returned_raw(self):
+        self.assertEqual(config_views.ticket_number({"ticket_number": 4}), 4)
+
+    def test_missing_key_defaults_to_two(self):
+        self.assertEqual(config_views.ticket_number({}), 2)
+
+    def test_explicit_default_one_is_honoured(self):
+        self.assertEqual(config_views.ticket_number({}, default=1), 1)
+
+    def test_view_is_computed_fresh_from_current_dict(self):
+        config = {"ticket_number": 2}
+        self.assertEqual(config_views.ticket_number(config), 2)
+        config["ticket_number"] = 3
+        self.assertEqual(config_views.ticket_number(config), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
