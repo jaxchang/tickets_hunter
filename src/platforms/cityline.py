@@ -9,6 +9,7 @@ import time
 
 import util
 from nodriver_common import (
+    PageState,
     check_and_handle_pause,
     handle_cloudflare_challenge,
     nodriver_current_url,
@@ -39,7 +40,33 @@ __all__ = [
     "is_cityline_login_page",
 ]
 
-_state = {}
+# Module-level state. Keys declare their lifecycle here, in one place
+# (issue #13, ADR 0002): page keys would be cleared by PageState when
+# the main function moves to a different page; every current key is
+# session state for the reason stated.
+# Page ids for PageState: the main function classifies the current page
+# into one of these per pass. Declarations and set_page share the names
+# so a typo cannot silently disable a key's clearing.
+_PAGE_LOGIN = "login"
+_PAGE_EVENTS_HOME = "events_home"
+_PAGE_SHOW_DETAIL = "show_detail"
+_PAGE_VENUE_DETAIL = "venue_detail"
+_PAGE_VENUE_PERFORMANCE = "venue_performance"
+_PAGE_VENUE_BASKET = "venue_basket"
+_PAGE_EVENT_HOST = "event_host"
+
+_state = PageState("cityline")
+_state.declare_session("account_assigned", "login-flow flag; reset explicitly when leaving a login page")
+_state.declare_session("otp_sent", "login-flow flag; reset explicitly when leaving a login page")
+_state.declare_session("turnstile_attempted", "login-flow flag; reset explicitly when leaving a login page")
+_state.declare_session("otp_wait_last_log", "OTP wait log throttle; reset explicitly when leaving a login page")
+_state.declare_session("modal_handled", "modal is handled once per run")
+_state.declare_session("buy_button_pressed", "buy button is pressed once per run")
+_state.declare_session("purchase_button_pressed", "purchase button is pressed once per run")
+_state.declare_session("performance_processed", "performance page processed flag")
+_state.declare_session("played_sound_ticket", "sound plays once per purchase flow")
+_state.declare_session("played_sound_order", "sound plays once per purchase flow")
+_state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
 
 
 def is_cityline_login_page(url):
@@ -988,6 +1015,26 @@ async def nodriver_cityline_main(tab, url, config_dict):
             "played_sound_order": False,
             "last_homepage_redirect_time": 0,
         })
+
+    # Page state lifecycle (issue #13): classify the page once per pass,
+    # mirroring the dispatch branches below.
+    if is_cityline_login_page(url):
+        _page_id = _PAGE_LOGIN
+    elif 'venue.cityline.com' in url and '/eventDetail?' in url:
+        _page_id = _PAGE_VENUE_DETAIL
+    elif 'venue.cityline.com' in url and '/performance?' in url:
+        _page_id = _PAGE_VENUE_PERFORMANCE
+    elif 'venue.cityline.com' in url and '/shoppingBasket' in url:
+        _page_id = _PAGE_VENUE_BASKET
+    elif 'shows.cityline.com' in url:
+        _page_id = _PAGE_SHOW_DETAIL
+    elif '/Events.html' in url:
+        _page_id = _PAGE_EVENTS_HOME
+    elif 'msg.cityline.com' in url or 'event.cityline.com' in url:
+        _page_id = _PAGE_EVENT_HOST
+    else:
+        _page_id = None
+    _state.set_page(_page_id)
 
     if 'msg.cityline.com' in url or 'event.cityline.com' in url:
         is_dom_ready = False
