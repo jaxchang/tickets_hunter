@@ -19,6 +19,7 @@ from zendriver import cdp
 
 import util
 from nodriver_common import (
+    PageState,
     cdp_click_at,
     check_and_handle_pause,
     detect_cloudflare_challenge,
@@ -65,8 +66,46 @@ __all__ = [
     "CONST_KKTIX_FORM_STATE_JS",
 ]
 
-# Module-level state (replaces global kktix_dict)
-_state = {}
+# Module-level state (replaces global kktix_dict). Keys declare their
+# lifecycle here, in one place (issue #9, ADR 0002): page keys would be
+# cleared by PageState when the main function moves to a different page;
+# every current key is session state for the reason stated.
+# Page ids for PageState: the main function classifies the current page
+# into one of these per pass. Declarations and set_page share the names
+# so a typo cannot silently disable a key's clearing.
+_PAGE_SIGNIN = "signin"
+_PAGE_BOOKING = "booking"
+_PAGE_REGISTRATIONS_NEW = "registrations_new"
+_PAGE_EVENT = "event"
+_PAGE_HOME = "home"
+
+_state = PageState("kktix")
+_state.declare_session("fail_list", "answer failure memory; reset explicitly by the page branches")
+_state.declare_session("captcha_pending", "pending captcha marker; reset explicitly by the page branches")
+_state.declare_session("start_time", "purchase-flow timing for the whole run")
+_state.declare_session("done_time", "purchase-flow timing for the whole run")
+_state.declare_session("elapsed_time", "purchase-flow timing for the whole run")
+_state.declare_session("is_popup_checkout", "checkout popup flag for the order flow")
+_state.declare_session("played_sound_ticket", "sound flag; reset explicitly by the page branches")
+_state.declare_session("played_sound_order", "sound plays once per purchase flow")
+_state.declare_session("got_ticket_detected", "success-page latch for the whole run")
+_state.declare_session("success_actions_done", "success actions run once per run")
+_state.declare_session("reg_execution_count", "registration attempt counter across rounds")
+_state.declare_session("alert_handler_registered", "alert handler registers once per process")
+_state.declare_session("alert_needs_reload", "set by the alert handler on any page, consumed on the registrations page")
+_state.declare_session("guest_modal_checked", "guest modal check state for the registrations flow")
+_state.declare_session("guest_modal_last_check_time", "guest modal check pacing for the registrations flow")
+_state.declare_session("guest_modal_status_logged", "guest modal status logs once")
+_state.declare_session("last_ticket_already_selected_log_value", "log-once telemetry for form readiness")
+_state.declare_session("printed_completed", "completion banner prints once per run")
+_state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
+_state.declare_session("next_button_pressed_url", "next-button cooldown guard, keyed by URL by design")
+_state.declare_session("next_button_pressed_time", "next-button cooldown guard, keyed by URL by design")
+_state.declare_session("last_signin_redirect_time", "sign-in redirect pacing across pages")
+_state.declare_session("queue_log_time", "queue page status log throttle")
+_state.declare_session("signin_error", "sign-in flow flag; popped when the sign-in attempt ends")
+_state.declare_session("signin_hold_logged", "sign-in hold logs once per attempt; popped when it ends")
+_state.declare_session("signin_target_url", "redirect target carried across the sign-in round trip")
 
 # How long after pressing "next" to leave the ticket flow alone. Long enough for
 # the submission to navigate, short enough that a failed press retries almost
@@ -2634,9 +2673,29 @@ async def nodriver_kktix_main(tab, url, config_dict):
         except Exception as exc:
             debug.log(f"取得跳轉後 URL 失敗: {exc}")
 
+    # The platform-root test is shared by the page classification below
+    # and the homepage redirect in the dispatch.
+    is_kktix_home = url.rstrip('/') in ['https://kktix.com', 'https://kktix.cc']
+
+    # Page state lifecycle (issue #9): classify the page once per pass,
+    # after any sign-in redirect has settled the URL, mirroring the
+    # dispatch branches below.
+    if is_kktix_login_page(url):
+        _page_id = _PAGE_SIGNIN
+    elif '#/booking' in url:
+        _page_id = _PAGE_BOOKING
+    elif '/registrations/new' in url:
+        _page_id = _PAGE_REGISTRATIONS_NEW
+    elif '/events/' in url and len(url.split('/')) <= 5:
+        _page_id = _PAGE_EVENT
+    elif is_kktix_home:
+        _page_id = _PAGE_HOME
+    else:
+        _page_id = None
+    _state.set_page(_page_id)
+
     if not is_url_contain_sign_in:
         # Redirect back to homepage if kicked to platform root (e.g., after sold-out or session expiry)
-        is_kktix_home = url.rstrip('/') in ['https://kktix.com', 'https://kktix.cc']
         if is_kktix_home:
             homepage = config_dict["homepage"]
             homepage_is_root = homepage.rstrip('/') in ['https://kktix.com', 'https://kktix.cc']
