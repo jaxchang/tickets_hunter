@@ -69,11 +69,19 @@ class FakeElement:
         self.click_calls += 1
 
 
+class FakeBrowser:
+    """The tab's browser handle: just the tab list handlers inspect."""
+
+    def __init__(self):
+        self.tabs = []
+
+
 class FakeTab:
     """A canned browser tab: selector/evaluate registries plus counters."""
 
     def __init__(self, url="about:blank"):
         self.url = url
+        self.browser = FakeBrowser()
         self.get_calls = []
         self.reload_calls = 0
         self.sleep_calls = []
