@@ -12,6 +12,7 @@ import traceback
 from zendriver import cdp
 
 import util
+import config_views
 from nodriver_common import (
     PageState,
     check_and_handle_pause,
@@ -843,7 +844,7 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
                 # deadline instead of sleeping, so the main loop keeps
                 # re-checking the page while waiting. An interval of 0 keeps
                 # this site's historical 1s pacing.
-                reload_interval = util.get_reload_interval(config_dict)
+                reload_interval = config_views.reload_interval(config_dict)
                 effective_interval = reload_interval if reload_interval > 0 else 1.0
                 previous_until = _state.get("date_reload_cooldown_until", 0)
                 should_reload, cooldown_until = util.advance_reload_cooldown(
@@ -1831,7 +1832,7 @@ async def nodriver_ticketplus_order(tab, config_dict, ocr, Captcha_Browser):
     else:
         debug.log("Ticket selection failed, cannot continue")
 
-        auto_reload_interval = util.get_reload_interval(config_dict)
+        auto_reload_interval = config_views.reload_interval(config_dict)
         if auto_reload_interval >= 0:
             # Non-blocking cooldown (issue #3): the selection check above
             # already re-ran on this pass, so a ticket count that changed on

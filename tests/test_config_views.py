@@ -97,5 +97,62 @@ class DateViewTest(unittest.TestCase):
         self.assertEqual(config, snapshot)
 
 
+def make_reload_config(interval=5, range_on=False, upper=0):
+    return {
+        "advanced": {
+            "auto_reload_page_interval": interval,
+            "auto_reload_page_interval_range": range_on,
+            "auto_reload_page_interval_max": upper,
+        }
+    }
+
+
+class ReloadIntervalViewTest(unittest.TestCase):
+    def test_interval_returned_as_is_without_range(self):
+        view = config_views.reload_interval(make_reload_config(interval=7))
+        self.assertEqual(view, 7)
+
+    def test_zero_means_reload_disabled(self):
+        view = config_views.reload_interval(make_reload_config(interval=0))
+        self.assertEqual(view, 0)
+
+    def test_missing_key_uses_default(self):
+        self.assertEqual(config_views.reload_interval({"advanced": {}}), 0)
+        self.assertEqual(
+            config_views.reload_interval({"advanced": {}}, default=5), 5
+        )
+        self.assertEqual(config_views.reload_interval({}), 0)
+
+    def test_valid_range_draws_within_bounds(self):
+        config = make_reload_config(interval=2, range_on=True, upper=6)
+        for _ in range(50):
+            view = config_views.reload_interval(config)
+            self.assertGreaterEqual(view, 2)
+            self.assertLessEqual(view, 6)
+            self.assertEqual(view, round(view, 2))
+
+    def test_range_with_interval_not_below_upper_returns_interval(self):
+        config = make_reload_config(interval=6, range_on=True, upper=6)
+        self.assertEqual(config_views.reload_interval(config), 6)
+        config = make_reload_config(interval=0, range_on=True, upper=6)
+        self.assertEqual(config_views.reload_interval(config), 0)
+
+    def test_range_with_non_numeric_values_returns_interval(self):
+        config = make_reload_config(interval="5", range_on=True, upper=6)
+        self.assertEqual(config_views.reload_interval(config), "5")
+        config = make_reload_config(interval=2, range_on=True, upper="6")
+        self.assertEqual(config_views.reload_interval(config), 2)
+
+    def test_range_with_bool_values_returns_interval(self):
+        config = make_reload_config(interval=True, range_on=True, upper=6)
+        self.assertIs(config_views.reload_interval(config), True)
+
+    def test_view_reflects_in_place_updates(self):
+        config = make_reload_config(interval=5)
+        self.assertEqual(config_views.reload_interval(config), 5)
+        config["advanced"]["auto_reload_page_interval"] = 9
+        self.assertEqual(config_views.reload_interval(config), 9)
+
+
 if __name__ == "__main__":
     unittest.main()

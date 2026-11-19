@@ -2457,7 +2457,7 @@ async def nodriver_kktix_reg_new_main(tab, config_dict, fail_list, played_sound_
 
                     debug.log("[KKTIX] no match any price, start to refresh page...")
 
-                    reload_interval = util.get_reload_interval(config_dict)
+                    reload_interval = config_views.reload_interval(config_dict)
                     if reload_interval > 0:
                         await asyncio.sleep(reload_interval)
 

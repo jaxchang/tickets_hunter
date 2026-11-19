@@ -1135,7 +1135,7 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
                         debug.log("Date list empty, will auto reload after delay...")
 
                 # Wait before reload (use config interval)
-                reload_interval = util.get_reload_interval(config_dict)
+                reload_interval = config_views.reload_interval(config_dict)
                 if reload_interval > 0:
                     await tab.sleep(reload_interval)
                 else:
@@ -1887,7 +1887,7 @@ async def nodriver_kham_performance(tab, config_dict, ocr, domain_name, model_na
         # Wait AFTER the reload: a DOM read before the new document parses sees
         # zero area rows and reloads forever. The same wait throttles the refresh
         # rate (#322); the settle floor applies even when the interval is 0.
-        reload_interval = util.get_reload_interval(config_dict)
+        reload_interval = config_views.reload_interval(config_dict)
         await tab.sleep(max(reload_interval, CONST_KHAM_RELOAD_SETTLE))
         # The page is reloading and the current DOM is stale, so skip the
         # captcha/submit attempt this round. Returning is_captcha_sent=False
@@ -3076,7 +3076,7 @@ async def nodriver_kham_main(tab, url, config_dict, ocr):
                     await tab.reload()
                 except Exception as exc:
                     debug.log(f"[CPBL AMOUNT] Reload exception: {exc}")
-                reload_interval = util.get_reload_interval(config_dict)
+                reload_interval = config_views.reload_interval(config_dict)
                 await tab.sleep(max(reload_interval, CONST_KHAM_RELOAD_SETTLE))
                 return tab
 
@@ -4364,7 +4364,7 @@ async def nodriver_kham_handle_seat_unavailable(tab, config_dict):
 
         # Floor the wait as the area page does: a seat map read before the
         # reload finishes is empty and would abandon an area that has seats.
-        reload_interval = util.get_reload_interval(config_dict, default=0.1)
+        reload_interval = config_views.reload_interval(config_dict, default=0.1)
         wait_sec = max(reload_interval, CONST_KHAM_RELOAD_SETTLE)
         await asyncio_sleep_with_pause_check(wait_sec)
         return True

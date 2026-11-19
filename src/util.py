@@ -1210,37 +1210,6 @@ def create_debug_logger(config_dict=None, enabled=None):
     return DebugLogger(config_dict, enabled)
 
 
-def get_reload_interval(config_dict, default=0):
-    """Return the seconds to wait before the next auto reload.
-
-    With the range setting on, auto_reload_page_interval is the lower bound
-    and auto_reload_page_interval_max the upper bound, and each call draws a
-    new value. Anything that is not a valid range returns the interval as is,
-    so 0 still means reload disabled and a hand-edited value behaves as before.
-
-    Args:
-        config_dict: Configuration dictionary
-        default: Value used when auto_reload_page_interval is missing
-
-    Returns:
-        The wait in seconds, or the configured value unchanged
-    """
-    advanced = config_dict.get("advanced", {})
-    interval = advanced.get("auto_reload_page_interval", default)
-    if not advanced.get("auto_reload_page_interval_range", False):
-        return interval
-
-    upper = advanced.get("auto_reload_page_interval_max", 0)
-    for value in (interval, upper):
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return interval
-    if not 0 < interval < upper:
-        return interval
-
-    # Clamp because rounding can step outside a very narrow range.
-    return max(interval, min(upper, round(random.uniform(interval, upper), 2)))
-
-
 def advance_reload_cooldown(now, cooldown_until, interval):
     """Step a polling-reload cooldown by one main-loop pass (issue #3).
 
@@ -1253,7 +1222,7 @@ def advance_reload_cooldown(now, cooldown_until, interval):
         now: Current wall-clock time (time.time() at the call site).
         cooldown_until: Deadline stored by the previous call, or a falsy
             value when no cooldown is running.
-        interval: Reload interval in seconds (see get_reload_interval).
+        interval: Reload interval in seconds (see config_views.reload_interval).
 
     Returns:
         A (should_reload, new_cooldown_until) pair:

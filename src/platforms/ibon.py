@@ -18,6 +18,7 @@ import webbrowser
 from zendriver import cdp
 
 import util
+import config_views
 from nodriver_common import (
     PageState,
     asyncio_sleep_with_pause_check,
@@ -4261,7 +4262,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                         debug = util.create_debug_logger(config_dict)
                         debug.log("[IBON DATE] Date selection failed, reloading page...")
 
-                        auto_reload_interval = util.get_reload_interval(config_dict)
+                        auto_reload_interval = config_views.reload_interval(config_dict)
                         if auto_reload_interval > 0:
                             await asyncio.sleep(auto_reload_interval)
 
@@ -4448,7 +4449,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                     debug = util.create_debug_logger(config_dict)
                     debug.log("[IBON ORDERS] No available areas found, page reload required")
 
-                    auto_reload_interval = util.get_reload_interval(config_dict)
+                    auto_reload_interval = config_views.reload_interval(config_dict)
                     if auto_reload_interval > 0:
                         await asyncio.sleep(auto_reload_interval)
 
@@ -4492,7 +4493,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                         await nodriver_ibon_navigate_on_sold_out(tab, config_dict)
 
                         # Wait before next check (FR-061: auto_reload_page_interval)
-                        auto_reload_interval = util.get_reload_interval(config_dict)
+                        auto_reload_interval = config_views.reload_interval(config_dict)
                         if auto_reload_interval > 0:
                             debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before next check...")
                             await asyncio.sleep(auto_reload_interval)
@@ -4560,7 +4561,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                             await nodriver_ibon_navigate_on_sold_out(tab, config_dict)
 
                             # Wait before next check (FR-061: auto_reload_page_interval)
-                            auto_reload_interval = util.get_reload_interval(config_dict)
+                            auto_reload_interval = config_views.reload_interval(config_dict)
                             if auto_reload_interval > 0:
                                 debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before next check...")
                                 await asyncio.sleep(auto_reload_interval)
@@ -4609,7 +4610,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                         await nodriver_ibon_navigate_on_sold_out(tab, config_dict)
 
                         # Wait before next check (FR-061: auto_reload_page_interval)
-                        auto_reload_interval = util.get_reload_interval(config_dict)
+                        auto_reload_interval = config_views.reload_interval(config_dict)
                         if auto_reload_interval > 0:
                             debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before next check...")
                             await asyncio.sleep(auto_reload_interval)
@@ -4675,7 +4676,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                             await nodriver_ibon_navigate_on_sold_out(tab, config_dict)
 
                             # Wait before next check (FR-061: auto_reload_page_interval)
-                            auto_reload_interval = util.get_reload_interval(config_dict)
+                            auto_reload_interval = config_views.reload_interval(config_dict)
                             if auto_reload_interval > 0:
                                 debug.log(f"[AUTO RELOAD] Waiting {auto_reload_interval} seconds before next check...")
                                 await asyncio.sleep(auto_reload_interval)
@@ -4758,7 +4759,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                     debug.log("[NEW EVENT] No available ticket areas found, page reload required")
 
                     # Use auto_reload_page_interval setting
-                    auto_reload_interval = util.get_reload_interval(config_dict)
+                    auto_reload_interval = config_views.reload_interval(config_dict)
                     if auto_reload_interval > 0:
                         await asyncio.sleep(auto_reload_interval)
 
@@ -4923,7 +4924,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                         debug.log("[IBON AREA] No available ticket areas found, page reload required")
 
                         # Use auto_reload_page_interval setting
-                        auto_reload_interval = util.get_reload_interval(config_dict)
+                        auto_reload_interval = config_views.reload_interval(config_dict)
                         if auto_reload_interval > 0:
                             await asyncio.sleep(auto_reload_interval)
 

@@ -82,7 +82,7 @@ python build_scripts/build_local.py             # 打包並驗證能啟動（改
 - `src/util.py` 為所有平台共用的純工具函式。
 - 所有執行期行為由 `settings.json` 控制。禁止把使用者可能需要調整的值寫死在程式碼中。
 - 新增設定鍵必須同時在 `src/settings.py` 的設定綱要中宣告。
-- 已設有檢視的階段，設定一律經 `src/config_views.py` 的檢視函式讀取（ADR 0004）：`date_selection` 的 config 包必須以 `config_views.date_view(config_dict)` 組裝，不得在 handler 內直接索引 `date_auto_select`/`keyword_exclude`/`date_auto_fallback` 組包（平台決定如覆寫欄位值不在此限，須以註解標明出處）。檢視必須是對當前 dict 的純函式現算，禁止快照或快取（`reload_config()` 會就地更新 dict）。
+- 已設有檢視的階段，設定一律經 `src/config_views.py` 的檢視函式讀取（ADR 0004）：`date_selection` 的 config 包必須以 `config_views.date_view(config_dict)` 組裝，不得在 handler 內直接索引 `date_auto_select`/`keyword_exclude`/`date_auto_fallback` 組包（平台決定如覆寫欄位值不在此限，須以註解標明出處）。檢視必須是對當前 dict 的純函式現算，禁止快照或快取（`reload_config()` 會就地更新 dict）。刷新間隔的計算一律以 `config_views.reload_interval(config_dict, default=...)` 為準（`util.get_reload_interval` 已刪除）；直接讀 `advanced.auto_reload_page_interval` 的既有點屬已盤點標記的分歧（issue #32），未經另案決定不得逕行改接或統一預設。
 
 ### 目錄結構
 
