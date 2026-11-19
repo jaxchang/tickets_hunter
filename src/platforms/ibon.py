@@ -4087,6 +4087,7 @@ async def nodriver_ibon_main(ctx):
 
     # Check if kicked to login page (Cookie/Session expired)
     debug = util.create_debug_logger(config_dict)
+    date_config = config_views.date_view(config_dict)
     area_config = config_views.area_view(config_dict)
     captcha_config = config_views.captcha_view(config_dict)
 
@@ -4275,7 +4276,7 @@ async def nodriver_ibon_main(ctx):
                 is_event_page = True
 
             if is_event_page:
-                if config_dict["date_auto_select"]["enable"]:
+                if date_config["enable"]:
                     is_match_target_feature = True
                     is_date_assign_by_bot = await nodriver_ibon_date_auto_select(tab, config_dict)
 

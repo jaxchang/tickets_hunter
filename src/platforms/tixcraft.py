@@ -225,14 +225,15 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
         await asyncio.sleep(remaining)
         _state["sold_out_cooldown_until"] = 0  # Reset after waiting
 
+    # Read config via the date view (issue #30, ADR 0004)
+    config_view = config_views.date_view(config_dict)
+
     # T003: Check main switch (defensive programming)
-    if not config_dict["date_auto_select"]["enable"]:
+    if not config_view["enable"]:
         debug.log("[DATE SELECT] Main switch is disabled, skipping date selection")
         return False
 
     # read config
-    # Read config via the date view (issue #30, ADR 0004)
-    config_view = config_views.date_view(config_dict)
     auto_select_mode = config_view["mode"]
     date_keyword = config_view["keyword"]
     date_auto_fallback = config_view["fallback"]
@@ -1517,6 +1518,8 @@ async def nodriver_tixcraft_main(ctx):
         _page_id = None
     _state.set_page(_page_id)
 
+    date_config = config_views.date_view(config_dict)
+
     # Register global alert handler (remains active throughout session)
     # Only register once to prevent infinite loop
     if not _state.get("alert_handler_registered", False):
@@ -1581,7 +1584,7 @@ async def nodriver_tixcraft_main(ctx):
     # Check if this is a Ticketmaster page before using TixCraft logic
     if "/activity/game/" in url and 'ticketmaster' not in url:
         _state["start_time"] = time.time()
-        if config_dict["date_auto_select"]["enable"]:
+        if date_config["enable"]:
             domain_name = url.split('/')[2]
             is_date_selected = await nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
 
@@ -1590,7 +1593,7 @@ async def nodriver_tixcraft_main(ctx):
     # page-state classification near the top of this function.
     if is_ticketmaster_date_page:
         _state["start_time"] = time.time()
-        if config_dict["date_auto_select"]["enable"]:
+        if date_config["enable"]:
             debug.log("[TICKETMASTER] Detected Ticketmaster date page, calling date auto select")
             domain_name = url.split('/')[2]
             # Call Ticketmaster date auto select

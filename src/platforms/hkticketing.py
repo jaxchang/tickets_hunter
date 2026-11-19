@@ -1974,7 +1974,8 @@ async def nodriver_hkticketing_type02_performance(tab, config_dict):
 
     # Step 1: Date selection
     is_date_assigned = False
-    if config_dict["date_auto_select"]["enable"]:
+    date_config = config_views.date_view(config_dict)
+    if date_config["enable"]:
         is_date_assigned = await nodriver_hkticketing_type02_date_assign(tab, config_dict)
         debug.log(f"[HKTICKETING TYPE02] Date assigned: {is_date_assigned}")
     else:
@@ -2517,6 +2518,7 @@ async def nodriver_hkticketing_main(ctx):
         })
 
     debug = util.create_debug_logger(config_dict)
+    date_config = config_views.date_view(config_dict)
 
     # Handle URL redirect (queue pages, error pages)
     is_redirected = await nodriver_hkticketing_url_redirect(tab, url, config_dict)
@@ -2724,7 +2726,7 @@ async def nodriver_hkticketing_main(ctx):
                 is_event_page = True
 
             if is_event_page:
-                if config_dict["date_auto_select"]["enable"]:
+                if date_config["enable"]:
                     if not _state["is_date_submiting"]:
                         _state["is_date_submiting"], _state["fail_list"] = await nodriver_hkticketing_date_auto_select(tab, config_dict, _state["fail_list"])
                     else:

@@ -2269,6 +2269,7 @@ async def nodriver_ticketplus_main(ctx):
 
     home_url = 'https://ticketplus.com.tw/'
     is_user_signin = False
+    date_config = config_views.date_view(config_dict)
     captcha_config = config_views.captcha_view(config_dict)
     if home_url == url.lower():
         if captcha_config["enable"]:
@@ -2303,7 +2304,7 @@ async def nodriver_ticketplus_main(ctx):
             is_button_pressed = await nodriver_ticketplus_accept_other_activity(tab)
             debug.log(f"[TICKETPLUS] Other Activity: {is_button_pressed}")
 
-            if config_dict["date_auto_select"]["enable"]:
+            if date_config["enable"]:
                 await nodriver_ticketplus_date_auto_select(tab, config_dict)
 
     # https://ticketplus.com.tw/order/XXX/OOO

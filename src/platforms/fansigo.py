@@ -558,7 +558,8 @@ async def nodriver_fansigo_date_auto_select(tab, url, config_dict) -> bool:
 
     # Check if date auto select is enabled
     date_auto_select = config_dict.get("date_auto_select", {})
-    if not date_auto_select.get("enable", True):
+    date_config = config_views.date_view(config_dict)
+    if not date_config["enable"]:
         return True
 
     # Only process event pages

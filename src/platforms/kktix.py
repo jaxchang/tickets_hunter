@@ -1357,13 +1357,14 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
 
     debug = util.create_debug_logger(config_dict)
 
+    # Read config via the date view (issue #30, ADR 0004)
+    config_view = config_views.date_view(config_dict)
+
     # T003: Check main switch (defensive programming)
-    if not config_dict["date_auto_select"]["enable"]:
+    if not config_view["enable"]:
         debug.log("[KKTIX DATE SELECT] Main switch is disabled, skipping date selection")
         return False
 
-    # Read config via the date view (issue #30, ADR 0004)
-    config_view = config_views.date_view(config_dict)
     auto_select_mode = config_view["mode"]
     date_keyword = config_view["keyword"]
     date_auto_fallback = config_view["fallback"]
@@ -2509,6 +2510,7 @@ async def nodriver_kktix_main(ctx):
     config_dict = ctx.config_dict
 
     debug = util.create_debug_logger(config_dict)
+    date_config = config_views.date_view(config_dict)
 
     if not _state:
         _state.update({
@@ -2760,7 +2762,7 @@ async def nodriver_kktix_main(ctx):
 
                 # Try date selection first (multi-session pages)
                 is_date_selected = False
-                if config_dict["date_auto_select"]["enable"]:
+                if date_config["enable"]:
                     is_date_selected = await nodriver_kktix_date_auto_select(tab, config_dict)
 
                 # If date selection didn't happen (single session or failed), use next button

@@ -31,6 +31,9 @@ def date_view(config_dict):
     """The date stage's config bundle, as consumed by
     ``date_selection.select_date``.
 
+    - ``enable``: ``date_auto_select.enable``; True when missing
+      (the settings default). The stage's gating sites read this
+      field (issue #60); ``select_date`` itself ignores it.
     - ``keyword``: ``date_auto_select.date_keyword``, stripped;
       ``""`` when missing or None.
     - ``mode``: ``date_auto_select.mode``; ``"from top to bottom"``
@@ -46,6 +49,7 @@ def date_view(config_dict):
     """
     date_select = config_dict.get("date_auto_select") or {}
     return {
+        "enable": date_select.get("enable", True),
         "keyword": (date_select.get("date_keyword") or "").strip(),
         "mode": date_select.get("mode") or "from top to bottom",
         "keyword_exclude": config_dict.get("keyword_exclude"),
