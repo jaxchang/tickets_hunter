@@ -21,6 +21,7 @@ from zendriver import cdp
 
 import util
 import date_selection
+import config_views
 from nodriver_common import (
     PageState,
     asyncio_sleep_with_pause_check,
@@ -954,12 +955,12 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
     # Wait for page to load
     await tab.sleep(0.6)
 
-    auto_select_mode = config_dict["date_auto_select"]["mode"]
-    date_keyword = config_dict["date_auto_select"]["date_keyword"].strip()
+    # Read config via the date view (issue #30, ADR 0004)
+    config_view = config_views.date_view(config_dict)
+    auto_select_mode = config_view["mode"]
+    date_keyword = config_view["keyword"]
     auto_reload_coming_soon_page_enable = config_dict["tixcraft"]["auto_reload_coming_soon_page"]
-
-    # Feature 003: Safe access for conditional fallback switch
-    date_auto_fallback = config_dict.get('date_auto_fallback', False)
+    date_auto_fallback = config_view["fallback"]
 
     debug.log("date_keyword:", date_keyword)
     debug.log("auto_reload_coming_soon_page_enable:", auto_reload_coming_soon_page_enable)
@@ -1079,13 +1080,7 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
     # keyword (parse_error_all). The core evaluates groups lazily,
     # like the old loop, so an earlier matching group still wins over
     # a later malformed one.
-    config_view = {
-        "keyword": date_keyword,
-        "mode": auto_select_mode,
-        "keyword_exclude": config_dict.get("keyword_exclude"),
-        "fallback": date_auto_fallback,
-        "parse_error_all": True,
-    }
+    config_view["parse_error_all"] = True
     chosen_index = date_selection.select_date(rows, config_view)
     target_row = rows[chosen_index]["payload"] if chosen_index is not None else None
 

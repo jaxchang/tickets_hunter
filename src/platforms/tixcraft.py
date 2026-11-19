@@ -24,6 +24,7 @@ from zendriver import cdp
 
 import util
 import date_selection
+import config_views
 from nodriver_common import (
     PageState,
     check_and_handle_pause,
@@ -723,9 +724,8 @@ async def nodriver_ticketmaster_date_auto_select(tab, config_dict):
     """
     debug = util.create_debug_logger(config_dict)
 
-    # Read config
-    auto_select_mode = config_dict.get("date_auto_select", {}).get("mode", "from top to bottom")
-    date_keyword = config_dict.get("date_auto_select", {}).get("date_keyword", "").strip()
+    # Read config (the selection bundle is built by the date view
+    # at the selection site below, issue #30 / ADR 0004)
     pass_date_is_sold_out_enable = config_dict.get("tixcraft", {}).get("pass_date_is_sold_out", False)
     # The key only exists under "tixcraft" (settings.py get_default_config); every
     # other platform reads it from there too. Reading "kktix" made this always
@@ -809,15 +809,11 @@ async def nodriver_ticketmaster_date_auto_select(tab, config_dict):
     available_date_count = sum(1 for row in rows if row["available"])
     debug.log(f"[TICKETMASTER DATE] {available_date_count} available dates after filtering")
 
-    # Get date_auto_fallback setting (default: False = strict mode)
-    date_auto_fallback = config_dict.get('date_auto_fallback', False)
-
-    config_view = {
-        "keyword": date_keyword,
-        "mode": auto_select_mode,
-        "keyword_exclude": "",
-        "fallback": date_auto_fallback,
-    }
+    # The bundle comes from the date view (issue #30, ADR 0004); this
+    # handler has never applied keyword_exclude, so the view's
+    # pass-through value is overridden with an empty string (issue #26).
+    config_view = config_views.date_view(config_dict)
+    config_view["keyword_exclude"] = ""
     chosen_index = date_selection.select_date(rows, config_view)
     target_area = rows[chosen_index]["payload"] if chosen_index is not None else None
 
@@ -1657,9 +1653,11 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
         return False
 
     # read config
-    auto_select_mode = config_dict["date_auto_select"]["mode"]
-    date_keyword = config_dict["date_auto_select"]["date_keyword"].strip()
-    date_auto_fallback = config_dict.get('date_auto_fallback', False)  # T017: Safe access for new field (default: strict mode)
+    # Read config via the date view (issue #30, ADR 0004)
+    config_view = config_views.date_view(config_dict)
+    auto_select_mode = config_view["mode"]
+    date_keyword = config_view["keyword"]
+    date_auto_fallback = config_view["fallback"]
     pass_date_is_sold_out_enable = config_dict["tixcraft"]["pass_date_is_sold_out"]
     auto_reload_coming_soon_page_enable = config_dict["tixcraft"]["auto_reload_coming_soon_page"]
 
@@ -1764,12 +1762,6 @@ async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name)
                     "payload": row,
                 })
 
-    config_view = {
-        "keyword": date_keyword,
-        "mode": auto_select_mode,
-        "keyword_exclude": config_dict.get("keyword_exclude"),
-        "fallback": date_auto_fallback,
-    }
     chosen_index = date_selection.select_date(rows, config_view)
     target_area = rows[chosen_index]["payload"] if chosen_index is not None else None
 

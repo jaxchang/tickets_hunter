@@ -82,6 +82,7 @@ python build_scripts/build_local.py             # 打包並驗證能啟動（改
 - `src/util.py` 為所有平台共用的純工具函式。
 - 所有執行期行為由 `settings.json` 控制。禁止把使用者可能需要調整的值寫死在程式碼中。
 - 新增設定鍵必須同時在 `src/settings.py` 的設定綱要中宣告。
+- 已設有檢視的階段，設定一律經 `src/config_views.py` 的檢視函式讀取（ADR 0004）：`date_selection` 的 config 包必須以 `config_views.date_view(config_dict)` 組裝，不得在 handler 內直接索引 `date_auto_select`/`keyword_exclude`/`date_auto_fallback` 組包（平台決定如覆寫欄位值不在此限，須以註解標明出處）。檢視必須是對當前 dict 的純函式現算，禁止快照或快取（`reload_config()` 會就地更新 dict）。
 
 ### 目錄結構
 
@@ -104,7 +105,7 @@ build_scripts/           PyInstaller 打包腳本
 `docs/02-development/code-boundaries.md`）：
 
 ```
-nodriver_tixcraft  ->  platforms/*  ->  nodriver_common / date_selection  ->  util / settings
+nodriver_tixcraft  ->  platforms/*  ->  nodriver_common / date_selection / config_views  ->  util / settings
 ```
 
 ### 平台與模組對照
