@@ -13,6 +13,7 @@ import time
 import urllib.parse
 from zendriver import cdp
 import util
+import config_views
 from nodriver_common import (
     CONST_FROM_TOP_TO_BOTTOM,
 )
@@ -143,17 +144,17 @@ def _pick_utk_rwd_amount_row(rows, config_dict, match_area_keyword=True):
         candidates.append((row, util.format_keyword_string(text)))
     if not candidates:
         return None
-    area_select = config_dict.get("area_auto_select", {})
-    keyword = area_select.get("area_keyword", "").strip() if match_area_keyword else ""
+    area_config = config_views.area_view(config_dict)
+    keyword = area_config["keyword"].strip() if match_area_keyword else ""
     if keyword:
         for item in util.parse_keyword_string_to_array(keyword):
             words = [util.format_keyword_string(w) for w in item.split(" ") if w]
             for row, text in candidates:
                 if words and all(w in text for w in words):
                     return row
-        if not config_dict.get("area_auto_fallback", False):
+        if not area_config["fallback"]:
             return None
-    mode = area_select.get("mode", CONST_FROM_TOP_TO_BOTTOM)
+    mode = area_config["mode"]
     return util.get_target_item_from_matched_list([row for row, _ in candidates], mode)
 
 

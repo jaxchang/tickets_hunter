@@ -24,7 +24,7 @@ caching or hidden state.
 
 import random
 
-__all__ = ["date_view", "reload_interval"]
+__all__ = ["date_view", "reload_interval", "area_view"]
 
 
 def date_view(config_dict):
@@ -50,6 +50,36 @@ def date_view(config_dict):
         "mode": date_select.get("mode") or "from top to bottom",
         "keyword_exclude": config_dict.get("keyword_exclude"),
         "fallback": config_dict.get("date_auto_fallback", False),
+    }
+
+
+def area_view(config_dict):
+    """The area stage's config bundle (issue #54).
+
+    - ``enable``: ``area_auto_select.enable``; True when missing
+      (the settings default).
+    - ``mode``: ``area_auto_select.mode``; ``"random"`` when missing
+      or empty (the settings default, CONST_SELECT_ORDER_DEFAULT).
+    - ``keyword``: ``area_auto_select.area_keyword``, returned raw --
+      call sites that stripped the value keep stripping it, because
+      the current readers disagree (indexing readers strip, ``.get``
+      readers do not).
+    - ``keyword_exclude``: the top-level value; ``""`` when missing.
+      Area readers de-facto default to "" here, unlike the date
+      stage's raw pass-through in date_view.
+    - ``fallback``: ``area_auto_fallback``; False when missing.
+
+    A missing ``area_auto_select`` section yields the defaults instead
+    of raising (ADR 0004); in real runs the section always exists
+    because ``get_config_dict`` migrates the loaded settings.
+    """
+    area_select = config_dict.get("area_auto_select") or {}
+    return {
+        "enable": area_select.get("enable", True),
+        "mode": area_select.get("mode") or "random",
+        "keyword": area_select.get("area_keyword", ""),
+        "keyword_exclude": config_dict.get("keyword_exclude", ""),
+        "fallback": config_dict.get("area_auto_fallback", False),
     }
 
 

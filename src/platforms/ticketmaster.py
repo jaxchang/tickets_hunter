@@ -202,7 +202,8 @@ def get_ticketmaster_target_area(config_dict, area_keyword_item, zone_info):
     """
     debug = util.create_debug_logger(config_dict)
 
-    area_auto_select_mode = config_dict.get("area_auto_select", {}).get("mode", "from top to bottom")
+    area_config = config_views.area_view(config_dict)
+    area_auto_select_mode = area_config["mode"]
 
     is_need_refresh = False
     matched_blocks = []
@@ -588,7 +589,8 @@ async def nodriver_ticketmaster_area_auto_select(tab, config_dict, zone_info):
     """
     debug = util.create_debug_logger(config_dict)
 
-    area_keyword = config_dict.get("area_auto_select", {}).get("area_keyword", "").strip()
+    area_config = config_views.area_view(config_dict)
+    area_keyword = area_config["keyword"].strip()
 
     debug.log(f"[TICKETMASTER AREA] area_keyword: {area_keyword}")
 
@@ -596,7 +598,7 @@ async def nodriver_ticketmaster_area_auto_select(tab, config_dict, zone_info):
     matched_blocks = None
 
     # Get area_auto_fallback setting (default: False = strict mode)
-    area_auto_fallback = config_dict.get("area_auto_fallback", False)
+    area_auto_fallback = area_config["fallback"]
 
     if area_keyword:
         area_keyword_array = util.parse_keyword_string_to_array(area_keyword)
@@ -629,7 +631,7 @@ async def nodriver_ticketmaster_area_auto_select(tab, config_dict, zone_info):
         is_need_refresh, matched_blocks = get_ticketmaster_target_area(config_dict, "", zone_info)
 
     # Select target
-    auto_select_mode = config_dict.get("area_auto_select", {}).get("mode", "from top to bottom")
+    auto_select_mode = area_config["mode"]
     target_area = util.get_target_item_from_matched_list(matched_blocks, auto_select_mode)
 
     if target_area:
@@ -661,7 +663,7 @@ async def nodriver_ticketmaster_area_auto_select(tab, config_dict, zone_info):
     # Auto refresh if needed (only when keyword is specified but no match)
     if is_need_refresh:
         # Check if area_keyword is empty (empty = should match all areas)
-        area_keyword = config_dict.get("area_auto_select", {}).get("area_keyword", "").strip()
+        area_keyword = area_config["keyword"].strip()
 
         if area_keyword and _is_page_reload_enabled(config_dict, debug, "TICKETMASTER AREA"):
             # Keyword specified but no match → might need to wait for availability

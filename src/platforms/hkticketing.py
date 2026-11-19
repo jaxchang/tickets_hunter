@@ -655,8 +655,9 @@ async def nodriver_hkticketing_area_auto_select(tab, config_dict, area_keyword_i
             - is_price_assign_by_bot: whether area has been selected
     """
     debug = util.create_debug_logger(config_dict)
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-    area_auto_fallback = config_dict.get("area_auto_fallback", False)
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
+    area_auto_fallback = area_config["fallback"]
 
     is_need_refresh = False
     is_price_assign_by_bot = False
@@ -1702,8 +1703,9 @@ async def nodriver_hkticketing_type02_area_auto_select(tab, config_dict, area_ke
         Tuple[bool, bool]: (is_need_refresh, is_area_assigned)
     """
     debug = util.create_debug_logger(config_dict)
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-    area_auto_fallback = config_dict.get("area_auto_fallback", False)
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
+    area_auto_fallback = area_config["fallback"]
 
     is_need_refresh = False
     is_area_assigned = False
@@ -1983,8 +1985,9 @@ async def nodriver_hkticketing_type02_performance(tab, config_dict):
 
     # Step 2: Area selection
     is_area_assigned = False
-    if config_dict["area_auto_select"]["enable"]:
-        area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
+    area_config = config_views.area_view(config_dict)
+    if area_config["enable"]:
+        area_keyword = area_config["keyword"].strip()
         is_need_refresh, is_area_assigned = await nodriver_hkticketing_type02_area_auto_select(
             tab, config_dict, area_keyword
         )
@@ -2295,7 +2298,8 @@ async def nodriver_hkticketing_performance(tab, config_dict, domain_name):
     await nodriver_hkticketing_hide_tickets_blocks(tab)
 
     # Get area keyword (pass full string, function will handle multiple keywords)
-    area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
+    area_config = config_views.area_view(config_dict)
+    area_keyword = area_config["keyword"].strip()
 
     is_price_assign_by_bot = False
     is_need_refresh = False
@@ -2740,7 +2744,8 @@ async def nodriver_hkticketing_main(ctx):
         else:
             if '/tickets' in url:
                 domain_name = url.split('/')[2]
-                if config_dict["area_auto_select"]["enable"]:
+                area_config = config_views.area_view(config_dict)
+                if area_config["enable"]:
                     # Play sound when entering ticket page
                     if not _state["played_sound_ticket"]:
                         if config_dict["advanced"]["play_sound"]["ticket"]:

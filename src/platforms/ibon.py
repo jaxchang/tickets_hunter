@@ -1012,8 +1012,9 @@ async def nodriver_ibon_event_area_auto_select(tab, config_dict, area_keyword_it
             - is_price_assign_by_bot: Whether area selection succeeded
     """
     debug = util.create_debug_logger(config_dict)
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-    area_auto_fallback = config_dict.get('area_auto_fallback', False)  # T021: Safe access for new field
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
+    area_auto_fallback = area_config["fallback"]
     ticket_number = config_dict["ticket_number"]
 
     is_price_assign_by_bot = False
@@ -1463,8 +1464,9 @@ async def nodriver_ibon_area_auto_select(tab, config_dict, area_keyword_item="")
         return False, False
 
     debug = util.create_debug_logger(config_dict)
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-    area_auto_fallback = config_dict.get('area_auto_fallback', False)  # T021: Safe access for new field
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
+    area_auto_fallback = area_config["fallback"]
     ticket_number = config_dict["ticket_number"]
 
     is_price_assign_by_bot = False
@@ -2041,9 +2043,13 @@ async def nodriver_ibon_ticket_number_auto_select(tab, config_dict):
     is_ticket_number_assigned = False
 
     # Get keyword settings for ticket type matching
-    area_keyword = config_dict["area_auto_select"].get("area_keyword", "").strip()
-    keyword_exclude = config_dict.get("keyword_exclude", "")
-    auto_select_mode = config_dict["area_auto_select"].get("mode", 1)
+    area_config = config_views.area_view(config_dict)
+    # Call-site override (issue #54): this handler defaults mode to 1 when the key is missing.
+    if "mode" not in (config_dict.get("area_auto_select") or {}):
+        area_config["mode"] = 1
+    area_keyword = area_config["keyword"].strip()
+    keyword_exclude = area_config["keyword_exclude"]
+    auto_select_mode = area_config["mode"]
 
     try:
         # Step 1: Wait for SELECT element
@@ -3696,9 +3702,13 @@ async def nodriver_tour_ibon_options(tab, config_dict):
 
         # Get area keyword for ticket type matching
         area_keyword = ""
-        area_auto_select_enable = config_dict.get("area_auto_select", {}).get("enable", False)
+        area_config = config_views.area_view(config_dict)
+        # Call-site override (issue #54): this handler defaults enable to False when the key is missing.
+        if "enable" not in (config_dict.get("area_auto_select") or {}):
+            area_config["enable"] = False
+        area_auto_select_enable = area_config["enable"]
         if area_auto_select_enable:
-            area_keyword = config_dict.get("area_auto_select", {}).get("area_keyword", "")
+            area_keyword = area_config["keyword"]
             area_keyword = util.format_keyword_string(area_keyword)
 
         try:
@@ -4005,7 +4015,8 @@ def ibon_livemap_select_area(livemap_areas, config_dict, area_keyword_item, debu
     Returns selected area dict or None.
     """
     ticket_number = config_dict["ticket_number"]
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
 
     matched = []
     for area in livemap_areas:
@@ -4075,6 +4086,7 @@ async def nodriver_ibon_main(ctx):
 
     # Check if kicked to login page (Cookie/Session expired)
     debug = util.create_debug_logger(config_dict)
+    area_config = config_views.area_view(config_dict)
 
     # Lazy-register alert handler (no-op if already registered by goto_homepage)
     await register_ibon_alert_handler(tab, config_dict)
@@ -4337,9 +4349,9 @@ async def nodriver_ibon_main(ctx):
             # Check if area is already selected (avoid duplicate selection causing double tickets)
             is_area_already_selected = 'PERFORMANCE_PRICE_AREA_ID=' in url.upper()
 
-            if config_dict["area_auto_select"]["enable"] and not is_area_already_selected:
+            if area_config["enable"] and not is_area_already_selected:
                 is_match_target_feature = True
-                area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
+                area_keyword = area_config["keyword"].strip()
 
                 # === live.map fast-path: skip DOM parsing by fetching area data from CDN ===
                 # Python requests bypasses browser network layer, unaffected by CDP blocking rules.
@@ -4434,11 +4446,11 @@ async def nodriver_ibon_main(ctx):
                     # Fallback: If all keyword groups failed, check area_auto_fallback setting
                     if not is_price_assign_by_bot:
                         if is_need_refresh:
-                            area_auto_fallback = config_dict.get("area_auto_fallback", False)
+                            area_auto_fallback = area_config["fallback"]
                             if area_auto_fallback:
                                 # Feature 003: Fallback enabled - use auto_select_mode without keyword
                                 debug = util.create_debug_logger(config_dict)
-                                auto_select_mode = config_dict["area_auto_select"]["mode"]
+                                auto_select_mode = area_config["mode"]
                                 debug.log(f"[IBON AREA] All keyword groups failed, area_auto_fallback=true")
                                 debug.log(f"[IBON AREA] Falling back to auto_select_mode: {auto_select_mode}")
                                 is_need_refresh, is_price_assign_by_bot = await nodriver_ibon_area_auto_select(tab, config_dict, "")
@@ -4717,9 +4729,9 @@ async def nodriver_ibon_main(ctx):
                 is_new_event_page = True
 
         if is_new_event_page:
-            if config_dict["area_auto_select"]["enable"]:
+            if area_config["enable"]:
                 is_match_target_feature = True
-                area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
+                area_keyword = area_config["keyword"].strip()
 
                 is_need_refresh = False
                 is_price_assign_by_bot = False
@@ -4740,11 +4752,11 @@ async def nodriver_ibon_main(ctx):
                     # Fallback: If all keyword groups failed, check area_auto_fallback setting
                     if not is_price_assign_by_bot:
                         if is_need_refresh:
-                            area_auto_fallback = config_dict.get("area_auto_fallback", False)
+                            area_auto_fallback = area_config["fallback"]
                             if area_auto_fallback:
                                 # Feature 003: Fallback enabled - use auto_select_mode without keyword
                                 debug = util.create_debug_logger(config_dict)
-                                auto_select_mode = config_dict["area_auto_select"]["mode"]
+                                auto_select_mode = area_config["mode"]
                                 debug.log(f"[IBON EVENT] All keyword groups failed, area_auto_fallback=true")
                                 debug.log(f"[IBON EVENT] Falling back to auto_select_mode: {auto_select_mode}")
                                 is_need_refresh, is_price_assign_by_bot = await nodriver_ibon_event_area_auto_select(tab, config_dict, "")
@@ -4901,7 +4913,7 @@ async def nodriver_ibon_main(ctx):
                         is_event_page = True
 
         if is_event_page:
-            if config_dict["area_auto_select"]["enable"]:
+            if area_config["enable"]:
                 select_query = "tr.disbled"
                 # TODO:
                 #clean_tag_by_selector(driver,select_query)
@@ -4922,7 +4934,7 @@ async def nodriver_ibon_main(ctx):
 
                     # Call area selection function (simplified version for testing)
                     # TODO: Implement nodriver_ibon_performance() wrapper with OR logic
-                    area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
+                    area_keyword = area_config["keyword"].strip()
                     is_need_refresh, is_price_assign_by_bot = await nodriver_ibon_area_auto_select(tab, config_dict, area_keyword)
 
                     debug.log(f"Area selection result - is_price_assign_by_bot: {is_price_assign_by_bot}, is_need_refresh: {is_need_refresh}")

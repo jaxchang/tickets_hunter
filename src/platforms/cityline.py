@@ -596,9 +596,10 @@ async def nodriver_cityline_area_auto_select(tab, config_dict):
         return False
 
     debug = util.create_debug_logger(config_dict)
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-    area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
-    area_auto_fallback = config_dict.get("area_auto_fallback", False)  # Read from top level
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
+    area_keyword = area_config["keyword"].strip()
+    area_auto_fallback = area_config["fallback"]
 
     is_price_assigned = False
 
@@ -1168,7 +1169,8 @@ async def nodriver_cityline_main(ctx):
 
         # Integrated performance page processing (area + ticket number + next button)
         if not _state["performance_processed"]:
-            if config_dict["area_auto_select"]["enable"]:
+            area_config = config_views.area_view(config_dict)
+            if area_config["enable"]:
                 is_area_processed = await nodriver_cityline_performance(tab, config_dict)
                 if is_area_processed:
                     _state["performance_processed"] = True

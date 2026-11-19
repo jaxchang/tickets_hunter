@@ -999,7 +999,8 @@ async def nodriver_kham_seat_main(tab, config_dict, ocr, domain_name):
         clear_kham_seat_reload_tracker(tab.target.url)
     else:
         # Step 1: Select seat type
-        area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
+        area_config = config_views.area_view(config_dict)
+        area_keyword = area_config["keyword"].strip()
         is_seat_type_assigned = await nodriver_kham_seat_type_auto_select(
             tab, config_dict, area_keyword
         )

@@ -390,8 +390,9 @@ async def nodriver_fami_area_auto_select(tab, config_dict, area_keyword_item):
     """
     debug = util.create_debug_logger(config_dict)
 
-    auto_select_mode = config_dict["area_auto_select"].get("mode", CONST_FROM_TOP_TO_BOTTOM)
-    area_auto_fallback = config_dict.get('area_auto_fallback', False)
+    area_config = config_views.area_view(config_dict)
+    auto_select_mode = area_config["mode"]
+    area_auto_fallback = area_config["fallback"]
 
     debug.log(f"[FAMI AREA] area_keyword_item: {area_keyword_item}")
     debug.log(f"[FAMI AREA] auto_select_mode: {auto_select_mode}")
@@ -512,7 +513,8 @@ async def nodriver_fami_date_to_area(tab, config_dict, last_activity_url):
 
     debug.log("[FAMI DATE TO AREA] Starting date to area flow")
 
-    area_keyword = config_dict["area_auto_select"].get("area_keyword", "").strip()
+    area_config = config_views.area_view(config_dict)
+    area_keyword = area_config["keyword"].strip()
     area_keyword_and = config_dict["area_auto_select"].get("area_keyword_and", [])
 
     area_keyword = util.format_keyword_for_display(area_keyword)
@@ -657,6 +659,7 @@ async def nodriver_fami_home_auto_select(tab, config_dict, last_activity_url):
     debug = util.create_debug_logger(config_dict)
 
     debug.log("[FAMI HOME] Processing home/sales page")
+    area_config = config_views.area_view(config_dict)
 
     page_type = await tab.evaluate('''
         (function() {
@@ -681,7 +684,7 @@ async def nodriver_fami_home_auto_select(tab, config_dict, last_activity_url):
             })()
         ''')
         debug.log(f"[FAMI HOME DEBUG] Selector check: {debug_selectors}")
-        debug.log(f"[FAMI HOME DEBUG] area_auto_select.enable: {config_dict['area_auto_select'].get('enable', True)}")
+        debug.log(f"[FAMI HOME DEBUG] area_auto_select.enable: {area_config['enable']}")
 
     # 1. Cart page
     if page_type == 'cart':
@@ -711,7 +714,7 @@ async def nodriver_fami_home_auto_select(tab, config_dict, last_activity_url):
     # 3. Area selection page
     if page_type == 'area':
         debug.log("[FAMI HOME] Detected area selection page")
-        if config_dict["area_auto_select"].get("enable", True):
+        if area_config["enable"]:
             is_area_selected = await nodriver_fami_date_to_area(tab, config_dict, last_activity_url)
 
             if not is_area_selected:

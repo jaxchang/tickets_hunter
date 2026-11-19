@@ -456,16 +456,17 @@ async def nodriver_tixcraft_area_auto_select(tab, url, config_dict):
 
     debug = util.create_debug_logger(config_dict)
 
+    area_config = config_views.area_view(config_dict)
     # T010: Check main switch (defensive programming)
-    if not config_dict["area_auto_select"]["enable"]:
+    if not area_config["enable"]:
         debug.log("[AREA SELECT] Main switch is disabled, skipping area selection")
         return False
 
     import json
 
-    area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
-    area_auto_fallback = config_dict.get('area_auto_fallback', False)  # T021: Safe access for new field
+    area_keyword = area_config["keyword"].strip()
+    auto_select_mode = area_config["mode"]
+    area_auto_fallback = area_config["fallback"]
 
     try:
         el = await tab.query_selector('.zone')
@@ -607,7 +608,8 @@ async def nodriver_tixcraft_area_auto_select(tab, url, config_dict):
 
 async def nodriver_get_tixcraft_target_area(el, config_dict, area_keyword_item,
                                             area_list_cache=None, area_text_cache=None):
-    area_auto_select_mode = config_dict["area_auto_select"]["mode"]
+    area_config = config_views.area_view(config_dict)
+    area_auto_select_mode = area_config["mode"]
     debug = util.create_debug_logger(config_dict)
     is_need_refresh = False
     matched_blocks = None
@@ -871,9 +873,10 @@ async def nodriver_tixcraft_assign_ticket_number(tab, config_dict):
 
     # Get area keyword configuration
     import json
-    area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
-    area_auto_fallback = config_dict.get('area_auto_fallback', False)
-    auto_select_mode = config_dict["area_auto_select"]["mode"]
+    area_config = config_views.area_view(config_dict)
+    area_keyword = area_config["keyword"].strip()
+    area_auto_fallback = area_config["fallback"]
+    auto_select_mode = area_config["mode"]
 
     # Parse keywords using JSON
     area_keyword_array = util.parse_keyword_string_to_array(area_keyword)
@@ -1598,7 +1601,8 @@ async def nodriver_tixcraft_main(ctx):
     # choose area
     if '/ticket/area/' in url:
         domain_name = url.split('/')[2]
-        if config_dict["area_auto_select"]["enable"]:
+        area_config = config_views.area_view(config_dict)
+        if area_config["enable"]:
             if not 'ticketmaster' in domain_name:
                 # for tixcraft
                 await nodriver_tixcraft_area_auto_select(tab, url, config_dict)

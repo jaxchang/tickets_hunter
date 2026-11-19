@@ -11,6 +11,7 @@ import re
 import traceback
 from zendriver import cdp
 import util
+import config_views
 from nodriver_common import (
     check_and_handle_pause,
     play_sound_while_ordering,
@@ -1218,7 +1219,8 @@ async def nodriver_ticket_seat_main(tab, config_dict, ocr, domain_name):
         is_seat_assigned = True
     else:
         # Step 1: Select seat type
-        area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
+        area_config = config_views.area_view(config_dict)
+        area_keyword = area_config["keyword"].strip()
         is_seat_type_assigned = await nodriver_ticket_seat_type_auto_select(
             tab, config_dict, area_keyword
         )
