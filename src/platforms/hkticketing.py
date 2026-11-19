@@ -2495,10 +2495,14 @@ async def nodriver_hkticketing_travel_iframe(tab, config_dict):
 
     return is_redirected
 
-async def nodriver_hkticketing_main(tab, url, config_dict):
+async def nodriver_hkticketing_main(ctx):
     """
     HKTicketing platform main flow control function
     """
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+
     if not _state:
         _state.update({
             "is_date_submiting": False,
@@ -2754,17 +2758,11 @@ async def nodriver_hkticketing_main(tab, url, config_dict):
     return tab
 
 
-# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
-# keeps its pre-interface signature until its migration batch; the
-# dispatcher assigned its tab return, and the adapter passes it through.
-async def _legacy_entry(ctx):
-    return await nodriver_hkticketing_main(ctx.tab, ctx.url, ctx.config_dict)
-
-
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 PLATFORM_ENTRIES = [
     PlatformEntry(
         "hkticketing",
-        _legacy_entry,
+        nodriver_hkticketing_main,
         patterns=("hkticketing.com", "galaxymacau.com", "ticketek.com"),
     ),
 ]

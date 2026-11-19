@@ -1918,13 +1918,21 @@ async def nodriver_kham_performance(tab, config_dict, ocr, domain_name, model_na
 
     return is_price_assign_by_bot, is_captcha_sent
 
-async def nodriver_kham_main(tab, url, config_dict, ocr):
+async def nodriver_kham_main(ctx):
     """
     Main control flow for Kham platform with URL routing
     """
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+    ocr = ctx.ocr
+
     # 函數開始時檢查暫停
     if await check_and_handle_pause(config_dict):
-        return False
+        # Platform interface (issue #36): this used to return False and
+        # the dispatcher assigned it to tab unconditionally, clobbering
+        # the tab for later passes. Returning the tab is the fix.
+        return tab
     if not _state:
         _state.update({
             "is_popup_checkout": False,
@@ -6410,19 +6418,11 @@ async def nodriver_ticket_switch_to_auto_seat(tab):
     return is_switch_to_auto_seat
 
 
-# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
-# keeps its pre-interface signature until its migration batch. The
-# dispatcher used to assign its return unconditionally (including the
-# pause path's False), so the adapter passes the return through
-# verbatim; fixing the False case is that batch's flagged change.
-async def _legacy_entry(ctx):
-    return await nodriver_kham_main(ctx.tab, ctx.url, ctx.config_dict, ctx.ocr)
-
-
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 PLATFORM_ENTRIES = [
     PlatformEntry(
         "kham",
-        _legacy_entry,
+        nodriver_kham_main,
         patterns=("kham.com.tw", "ticket.com.tw", "tickets.udnfunlife.com"),
         match_fn=is_utk_rwd_url,
     ),

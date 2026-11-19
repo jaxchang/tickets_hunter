@@ -1848,18 +1848,19 @@ async def nodriver_funone_error_handler(tab, error, config_dict):
 
     return False
 
-async def nodriver_funone_main(tab, url, config_dict):
+async def nodriver_funone_main(ctx):
     """
     Main control function for FunOne Tickets platform
 
     Args:
-        tab: NoDriver tab
-        url: Current page URL
-        config_dict: Configuration dictionary
+        ctx: PlatformContext with tab, url and config_dict
 
     Returns:
         tab: Updated NoDriver tab
     """
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
 
     # Check pause state
     if await check_and_handle_pause(config_dict):
@@ -2201,13 +2202,7 @@ async def nodriver_funone_main(tab, url, config_dict):
     return tab
 
 
-# Platform interface (issue #34, ADR 0005): legacy adapter -- the main
-# keeps its pre-interface signature until its migration batch; the
-# dispatcher assigned its tab return, and the adapter passes it through.
-async def _legacy_entry(ctx):
-    return await nodriver_funone_main(ctx.tab, ctx.url, ctx.config_dict)
-
-
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 PLATFORM_ENTRIES = [
-    PlatformEntry("funone", _legacy_entry, patterns=("tickets.funone.io",)),
+    PlatformEntry("funone", nodriver_funone_main, patterns=("tickets.funone.io",)),
 ]

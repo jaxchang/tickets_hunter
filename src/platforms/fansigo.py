@@ -317,7 +317,7 @@ async def nodriver_fansigo_inject_cookie(tab, config_dict):
         return False
 
 
-async def nodriver_fansigo_signin(tab, url, config_dict):
+async def nodriver_fansigo_signin(ctx):
     """Handle FANSI GO login page and AWS Cognito authentication.
 
     Flow:
@@ -326,13 +326,16 @@ async def nodriver_fansigo_signin(tab, url, config_dict):
     3. Cognito redirects back to go.fansi.me with auth code -> app sets cookies
 
     Args:
-        tab: NoDriver tab
-        url: Current page URL
-        config_dict: Configuration dictionary
+        ctx: PlatformContext with tab, url and config_dict
 
     Returns:
-        bool: True if login action was taken
+        None (platform interface, issue #36; the former bool return was
+        discarded by every caller)
     """
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+
     debug = util.create_debug_logger(config_dict)
 
     fansigo_account = config_dict["accounts"].get("fansigo_account", "").strip()
@@ -340,7 +343,7 @@ async def nodriver_fansigo_signin(tab, url, config_dict):
 
     if len(fansigo_account) == 0 or len(fansigo_password) == 0:
         debug.log("[FANSIGO] No account/password configured, manual login required")
-        return False
+        return None
 
     # On FANSI GO login page: click "other method" to go to Cognito
     if "go.fansi.me/login" in url:
@@ -350,10 +353,10 @@ async def nodriver_fansigo_signin(tab, url, config_dict):
                 debug.log("[FANSIGO] Clicked 'other login method', redirecting to Cognito")
             else:
                 debug.log("[FANSIGO] 'Other login method' button not found")
-            return True
+            return None
         except Exception as e:
             debug.log(f"[FANSIGO] Failed to click other login: {e}")
-            return False
+            return None
 
     # On Cognito hosted UI: fill email/password and submit
     if FANSIGO_COGNITO_DOMAIN in url:
@@ -375,11 +378,11 @@ async def nodriver_fansigo_signin(tab, url, config_dict):
 
             if js_result == 'form_not_found':
                 debug.log("[FANSIGO] Cognito form not found")
-                return False
+                return None
 
             if js_result == 'already_filled':
                 debug.log("[FANSIGO] Cognito form already filled, waiting for redirect")
-                return True
+                return None
 
             # Fill email
             email_el = await tab.query_selector('#signInFormUsername')
@@ -401,12 +404,12 @@ async def nodriver_fansigo_signin(tab, url, config_dict):
                 await submit_el.click()
                 debug.log("[FANSIGO] Cognito login submitted")
 
-            return True
+            return None
         except Exception as e:
             debug.log(f"[FANSIGO] Cognito login failed: {e}")
-            return False
+            return None
 
-    return False
+    return None
 
 
 async def nodriver_fansigo_get_shows(tab, config_dict) -> list:
@@ -933,17 +936,19 @@ async def _fansigo_return_to_configured_page(tab, config_dict, debug):
         debug.log(f"[FANSIGO] Error returning to configured page: {exc}")
 
 
-async def nodriver_fansigo_main(tab, url, config_dict):
+async def nodriver_fansigo_main(ctx):
     """Main control function for FANSI GO platform
 
     Args:
-        tab: NoDriver tab
-        url: Current page URL
-        config_dict: Configuration dictionary
+        ctx: PlatformContext with tab, url and config_dict
 
     Returns:
         tab: Updated NoDriver tab
     """
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+
     debug = util.create_debug_logger(config_dict)
 
     # Check pause state
@@ -988,7 +993,7 @@ async def nodriver_fansigo_main(tab, url, config_dict):
 
         if fansigo_account and fansigo_password:
             if not _state.get("is_signin_submitted"):
-                await nodriver_fansigo_signin(tab, url, config_dict)
+                await nodriver_fansigo_signin(ctx)
                 _state["is_signin_submitted"] = True
         elif not _state["is_cookie_injected"]:
             # Try cookie injection then reload
@@ -1057,20 +1062,8 @@ async def nodriver_fansigo_main(tab, url, config_dict):
 
     return tab
 
-# Platform interface (issue #34, ADR 0005): legacy adapters -- the mains
-# keep their pre-interface signatures until their migration batch. The
-# dispatcher assigned the main's tab return (passed through) and
-# discarded the sign-in helper's bool return (discarded here too).
-async def _legacy_entry(ctx):
-    return await nodriver_fansigo_main(ctx.tab, ctx.url, ctx.config_dict)
-
-
-async def _legacy_signin_entry(ctx):
-    await nodriver_fansigo_signin(ctx.tab, ctx.url, ctx.config_dict)
-    return None
-
-
+# Platform interface (issue #34, ADR 0005): this module's dispatch entries.
 PLATFORM_ENTRIES = [
-    PlatformEntry("fansigo", _legacy_entry, patterns=("go.fansi.me",)),
-    PlatformEntry("fansigo_signin", _legacy_signin_entry, patterns=(FANSIGO_COGNITO_DOMAIN,)),
+    PlatformEntry("fansigo", nodriver_fansigo_main, patterns=("go.fansi.me",)),
+    PlatformEntry("fansigo_signin", nodriver_fansigo_signin, patterns=(FANSIGO_COGNITO_DOMAIN,)),
 ]
