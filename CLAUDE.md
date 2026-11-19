@@ -161,7 +161,7 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common  ->  util / settings
   防重入狀態（沿用各平台模組既有的 `_state` dict，不要新增模組層級全域變數），失敗也要有重試上限，
   否則錯誤的值會被每秒送出數十次。
 - **在 `_state` 新增快取或截止時間時，同一個改動必須寫明它的清除時機。** 已遷移的模組
-  （tixcraft、TicketPlus、kktix）用 `nodriver_common.PageState` 在模組頂部集中宣告：屬於某頁的鍵以
+  （tixcraft、TicketPlus、kktix、funone）用 `nodriver_common.PageState` 在模組頂部集中宣告：屬於某頁的鍵以
   `declare_page` 宣告、由主函式的 `set_page` 在換頁時自動清除，跨頁存活的鍵以 `declare_session`
   宣告並附理由（機制與取捨見 ADR 0002）；尚未遷移的模組仍須在改動中寫明成功時清、離開該頁面
   時清，或跨頁保留的理由。只寫入不清的狀態會在換頁後以過期或未過期的舊值影響新頁面
