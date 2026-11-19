@@ -660,6 +660,7 @@ async def nodriver_fami_home_auto_select(tab, config_dict, last_activity_url):
 
     debug.log("[FAMI HOME] Processing home/sales page")
     area_config = config_views.area_view(config_dict)
+    date_config = config_views.date_view(config_dict)
 
     page_type = await tab.evaluate('''
         (function() {
@@ -727,7 +728,7 @@ async def nodriver_fami_home_auto_select(tab, config_dict, last_activity_url):
         return False
 
     # 4. Date selection page (default)
-    if config_dict["date_auto_select"].get("enable", True):
+    if date_config["enable"]:
         is_date_selected = await nodriver_fami_date_auto_select(
             tab, config_dict, last_activity_url
         )
@@ -751,6 +752,7 @@ async def nodriver_famiticket_main(ctx):
         })
 
     debug = util.create_debug_logger(config_dict)
+    date_config = config_views.date_view(config_dict)
 
     debug.log(f"[FAMITICKET MAIN] Processing URL: {url[:80]}...")
 
@@ -793,7 +795,7 @@ async def nodriver_famiticket_main(ctx):
             )
 
         elif '/Sales/Home/Index/' in url:
-            if config_dict["date_auto_select"].get("enable", True):
+            if date_config["enable"]:
                 result = await nodriver_fami_home_auto_select(
                     tab, config_dict, _state["last_activity"]
                 )

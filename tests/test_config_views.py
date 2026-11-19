@@ -34,6 +34,7 @@ class DateViewTest(unittest.TestCase):
     def test_full_config_maps_each_field(self):
         view = config_views.date_view(make_config())
         self.assertEqual(view, {
+            "enable": True,
             "keyword": "2026/01/02",
             "mode": "from bottom to top",
             "keyword_exclude": "01/03",
@@ -43,11 +44,18 @@ class DateViewTest(unittest.TestCase):
     def test_missing_section_yields_defaults(self):
         view = config_views.date_view({})
         self.assertEqual(view, {
+            "enable": True,
             "keyword": "",
             "mode": "from top to bottom",
             "keyword_exclude": None,
             "fallback": False,
         })
+
+    def test_enable_false_passes_through(self):
+        config = make_config()
+        config["date_auto_select"]["enable"] = False
+        view = config_views.date_view(config)
+        self.assertIs(view["enable"], False)
 
     def test_missing_keyword_exclude_stays_none(self):
         config = make_config()

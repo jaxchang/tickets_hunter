@@ -1212,6 +1212,7 @@ async def nodriver_kham_main(ctx):
     url = normalize_utk_rwd_url(url)
     domain_name = url.split('/')[2]
     debug = util.create_debug_logger(config_dict)
+    date_config = config_views.date_view(config_dict)
     area_config = config_views.area_view(config_dict)
     ticket_number_value = config_views.ticket_number(config_dict)
     captcha_config = config_views.captcha_view(config_dict)
@@ -1471,7 +1472,7 @@ async def nodriver_kham_main(ctx):
     if is_rwd and 'utk0201_.aspx?product_id=' in url.lower():
         list_ready = await _utk_rwd_wait_for(
             tab, "(() => !!document.querySelector('#PerformanceListTable table.ss'))()", 3.0)
-        if list_ready and config_dict["date_auto_select"]["enable"]:
+        if list_ready and date_config["enable"]:
             await nodriver_kham_product(tab, domain_name, config_dict)
 
     # Product page (UTK0201_.aspx?product_id=)
@@ -1537,7 +1538,7 @@ async def nodriver_kham_main(ctx):
     if 'utk0201_00.aspx?product_id=' in url.lower():
         is_event_page = len(url.split('/')) == 6
 
-        if is_event_page and config_dict["date_auto_select"]["enable"]:
+        if is_event_page and date_config["enable"]:
             await nodriver_kham_product(tab, domain_name, config_dict)
 
     # UDN specific handling
@@ -1677,7 +1678,7 @@ async def nodriver_kham_main(ctx):
                         await btn_next.click()
                 else:
                     # Layout format 2 - use date selection
-                    if config_dict["date_auto_select"]["enable"]:
+                    if date_config["enable"]:
                         await nodriver_kham_product(tab, domain_name, config_dict)
             except:
                 pass
@@ -1725,7 +1726,7 @@ async def nodriver_kham_main(ctx):
 
             try:
                 # Step 1: Date selection (li.yd_datedBtn)
-                if config_dict["date_auto_select"]["enable"]:
+                if date_config["enable"]:
                     date_keyword = config_dict["date_auto_select"]["date_keyword"].strip()
 
                     date_result_raw = await tab.evaluate('''
@@ -1798,7 +1799,7 @@ async def nodriver_kham_main(ctx):
                         await tab.sleep(0.3)
 
                 # Step 2: Performance/Session selection (div.sd-btn.bg--gray)
-                if config_dict["date_auto_select"]["enable"]:
+                if date_config["enable"]:
                     perf_result_raw = await tab.evaluate('''
                         (() => {
                             const perfBtns = document.querySelectorAll('div.sd-btn.bg--gray');

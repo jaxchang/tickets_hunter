@@ -1043,6 +1043,8 @@ async def nodriver_cityline_main(ctx):
         _page_id = None
     _state.set_page(_page_id)
 
+    date_config = config_views.date_view(config_dict)
+
     if 'msg.cityline.com' in url or 'event.cityline.com' in url:
         is_dom_ready = False
         try:
@@ -1140,7 +1142,7 @@ async def nodriver_cityline_main(ctx):
 
         # Then proceed with purchase button if not already processed
         if not _state["purchase_button_pressed"]:
-            if config_dict["date_auto_select"]["enable"]:
+            if date_config["enable"]:
                 is_button_clicked = await nodriver_cityline_purchase_button_press(tab, config_dict)
                 if is_button_clicked:
                     _state["purchase_button_pressed"] = True
