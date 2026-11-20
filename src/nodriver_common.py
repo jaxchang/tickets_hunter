@@ -947,29 +947,31 @@ STALE_TAB_MAX_AGE_PASSES = 600
 async def close_stale_tabs(tabs, working_tab, first_seen, current_pass):
     """Close non-working tabs older than STALE_TAB_MAX_AGE_PASSES.
 
-    ``first_seen`` maps a tab to the pass count when the sweep first
-    saw it as a non-working tab; the caller keeps the dict across
+    ``first_seen`` maps id(tab) to the pass count when the sweep
+    first saw that tab as a non-working tab (zendriver Tabs are
+    unhashable, so bookkeeping keys on identity, never on the tab
+    object itself -- issue #96); the caller keeps the dict across
     passes. The working tab is never closed and never tracked; tabs
     no longer present are forgotten. Returns the tabs that were
     closed.
     """
-    present = set(tabs)
-    for forgotten in [t for t in first_seen if t not in present]:
+    present = {id(t) for t in tabs}
+    for forgotten in [k for k in first_seen if k not in present]:
         del first_seen[forgotten]
 
     closed = []
     for tab in tabs:
         if tab is working_tab:
-            first_seen.pop(tab, None)
+            first_seen.pop(id(tab), None)
             continue
-        seen_at = first_seen.setdefault(tab, current_pass)
+        seen_at = first_seen.setdefault(id(tab), current_pass)
         if current_pass - seen_at > STALE_TAB_MAX_AGE_PASSES:
             try:
                 await tab.close()
                 closed.append(tab)
             except Exception:
                 pass
-            first_seen.pop(tab, None)
+            first_seen.pop(id(tab), None)
     return closed
 
 

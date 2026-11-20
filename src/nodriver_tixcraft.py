@@ -864,7 +864,8 @@ async def main(args):
     heartbeat_filename = settings.CONST_HEARTBEAT_FILE
     loop_state = {"last_tick": time.time()}
     # Stale-tab sweep bookkeeping (issue #94): pass counter and the
-    # first-seen pass of each non-working tab.
+    # first-seen pass of each non-working tab, keyed by id(tab)
+    # because zendriver Tabs are unhashable (issue #96).
     pass_count = 0
     tab_first_seen = {}
     heartbeat_task = asyncio.create_task(heartbeat_writer(

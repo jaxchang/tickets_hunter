@@ -99,6 +99,11 @@ class FakeTab:
     CDP events would be simulating, not stubbing.
     """
 
+    # Mirrors zendriver's Tab, which defines __eq__ without __hash__:
+    # tab objects are unhashable, so production code must key any
+    # bookkeeping by id(tab), never by the tab itself (issue #96).
+    __hash__ = None
+
     def __init__(self, url="about:blank"):
         self.url = url
         self.browser = FakeBrowser()
