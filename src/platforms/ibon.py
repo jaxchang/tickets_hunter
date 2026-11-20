@@ -113,6 +113,9 @@ _state.declare_session("shown_checkout_message", "checkout message shows once pe
 _state.declare_session("alert_handler_registered", "alert handler registers once per process")
 _state.declare_session("livemap_failed_areas", "livemap retry memory across rounds")
 _state.declare_session("livemap_last_attempt", "livemap retry memory across rounds")
+_state.declare_session("livemap_perf_id", "livemap poll bookkeeping: performance the cache belongs to")
+_state.declare_page("livemap_cache", _PAGE_UTK_DATE_AREA)
+_state.declare_page("livemap_fetch", _PAGE_UTK_DATE_AREA)
 _state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
 _state.declare_session("vaildate_submitted_url", "submitted validation URL guard, keyed by URL by design")
 
@@ -134,6 +137,9 @@ def _ensure_state():
         "alert_handler_registered": False,
         "livemap_failed_areas": {},
         "livemap_last_attempt": None,
+        "livemap_perf_id": None,
+        "livemap_cache": None,
+        "livemap_fetch": None,
         "played_sound_ticket": False,
         "last_homepage_redirect_time": 0,
         "vaildate_submitted_url": None,
@@ -4015,6 +4021,68 @@ def ibon_fetch_and_parse_livemap(performance_id, debug=None):
     return areas
 
 
+def _ibon_livemap_poll(perf_id, debug=None):
+    """Return the latest livemap areas for perf_id, or None if none yet.
+
+    The fetch+parse runs off the event loop (asyncio.to_thread, ADR
+    0008) and is single-flight: a call starts a fetch only when none
+    is in flight, harvests a finished fetch into the cache, and
+    returns the cached areas for this performance. The first passes
+    on a page return None and the caller falls back to the DOM flow;
+    later passes select from the previous fetch's result (staleness
+    is bounded by one fetch round-trip, and the failed-area blacklist
+    covers areas the CDN still lists but are actually sold out).
+
+    A performance change clears the retry memory (failed areas /
+    last attempt) and the cache, so nothing leaks across events.
+    """
+    if _state.get("livemap_perf_id") != perf_id:
+        _state["livemap_perf_id"] = perf_id
+        _state["livemap_failed_areas"] = {}
+        _state["livemap_last_attempt"] = None
+        _state["livemap_cache"] = None
+        _state["livemap_fetch"] = None
+
+    fetch = _state.get("livemap_fetch")
+    if fetch is not None and fetch["task"].done():
+        _state["livemap_fetch"] = None
+        try:
+            areas = fetch["task"].result()
+        except Exception as exc:
+            if debug:
+                debug.log(f"[IBON LIVEMAP] Background fetch failed: {exc}")
+            areas = None
+        # The fetch dict carries its own perf_id: only write back
+        # when it still matches the performance being polled, so a
+        # slow fetch for a previous event cannot pollute this cache.
+        if areas is not None and fetch["perf_id"] == perf_id:
+            _state["livemap_cache"] = {"perf_id": perf_id, "areas": areas}
+
+    if _state.get("livemap_fetch") is None:
+        fetch = {"perf_id": perf_id, "task": None}
+        task = asyncio.ensure_future(
+            asyncio.to_thread(ibon_fetch_and_parse_livemap, perf_id, debug))
+        fetch["task"] = task
+        _state["livemap_fetch"] = fetch
+
+        def _log_orphan_failure(done_task, _fetch=fetch):
+            # If this fetch was discarded before being harvested (page
+            # or performance change), retrieve its exception so asyncio
+            # does not warn about an unretrieved task exception.
+            if _state.get("livemap_fetch") is _fetch or done_task.cancelled():
+                return
+            exc = done_task.exception()
+            if exc is not None and debug:
+                debug.log(f"[IBON LIVEMAP] Discarded fetch failed: {exc}")
+
+        task.add_done_callback(_log_orphan_failure)
+
+    cache = _state.get("livemap_cache")
+    if cache and cache["perf_id"] == perf_id:
+        return cache["areas"]
+    return None
+
+
 def ibon_livemap_select_area(livemap_areas, config_dict, area_keyword_item, debug=None):
     """Select best area from live.map data based on config filters.
 
@@ -4392,7 +4460,7 @@ async def nodriver_ibon_main(ctx):
                             _state["livemap_last_attempt"] = None
                             livemap_debug.log(f"[IBON LIVEMAP] Area '{failed_area_name}' (id={failed_area_id}) sold out, added to blacklist ({len(failed_set)} total)")
 
-                        livemap_areas = ibon_fetch_and_parse_livemap(perf_id, livemap_debug)
+                        livemap_areas = _ibon_livemap_poll(perf_id, livemap_debug)
 
                         if livemap_areas:
                             # Filter out previously failed areas (stale CDN data)

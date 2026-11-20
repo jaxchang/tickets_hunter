@@ -183,6 +183,10 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common / date_selection / confi
   要檢查它的回傳值，填值失敗就不要送出。
 - **`querySelector('A, B')` 回傳文件順序中第一個符合的元素**，不是「優先 A、其次 B」。
   需要優先順序就分兩次查詢。
+- **不要在 event loop 上直接跑同步 I/O 或 CPU 工作**（`requests.get`、OCR 推論、大量解析）：
+  主迴圈約 50 毫秒一輪，凍結幾百毫秒就可能錯過開賣瞬間。async 流程內需要回傳值的同步工作
+  以 `asyncio.to_thread` 卸載（首例 ibon livemap，#74）；fire-and-forget 的副作用（通知、
+  音效）才用 daemon thread。原則與取捨見 ADR 0008。
 - **CDP dialog handler 的註冊旗標與連線生命週期不一致。** zendriver 的 handler 活在 tab 的
   連線（connection）上、以 `add_handler` 只增不去重；各平台的「只註冊一次」守衛卻放在模組
   `_state`（如 `alert_handler_registered`）。tab 若在同一程序內被重建，新連線沒有 handler、
