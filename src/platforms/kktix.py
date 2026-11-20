@@ -1350,6 +1350,26 @@ async def debug_kktix_page_state(tab, show_debug=True):
         debug.log(f"Debug failed: {exc}")
         return error_state
 
+# One batch read of the session list for the date handler (issue
+# #84): per li, the date text with the same source priority as the
+# per-row path (span.timezoneSuffix, then .event-info > a > p) and
+# whether the buy button exists.
+CONST_KKTIX_DATE_ROWS_JS = '''
+    Array.from(document.querySelectorAll('div.event-list ul.clearfix > li')).map(function(li) {
+        var suffix = li.querySelector('span.timezoneSuffix');
+        var text = suffix ? (suffix.textContent || '').trim() : '';
+        if (!text) {
+            var fallback = li.querySelector('.event-info > a > p');
+            text = fallback ? (fallback.textContent || '').trim() : '';
+        }
+        return {
+            dateText: text,
+            hasButton: !!li.querySelector('div.content > a.btn-point')
+        };
+    })
+'''
+
+
 async def nodriver_kktix_date_auto_select(tab, config_dict):
     """KKTIX multi-session date selection with keyword matching"""
     # Check pause state
@@ -1407,48 +1427,76 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
 
     debug.log(f"[KKTIX DATE] Found {len(session_list)} sessions on page")
 
+    # Batch-extract the rows in one evaluate (issue #84). When the
+    # batch succeeds the payload is the li element itself and the buy
+    # button is resolved once, after selection (below); a failed or
+    # misaligned batch result falls back to the per-row extraction,
+    # unchanged.
+    batch_rows = None
+    try:
+        batch_result = await tab.evaluate(CONST_KKTIX_DATE_ROWS_JS)
+        if (isinstance(batch_result, list)
+                and len(batch_result) == len(session_list)
+                and all(isinstance(batch_row, dict) for batch_row in batch_result)):
+            batch_rows = batch_result
+    except Exception:
+        batch_rows = None
+
     # Extract rows for the shared date-selection core (issue #22,
-    # ADR 0003): the date text, the buy button as the opaque payload,
-    # and availability = date text present and button present. Keyword
+    # ADR 0003): the date text, an opaque payload (the buy button on
+    # the per-row path, the li element on the batch path), and
+    # availability = date text present and button present. Keyword
     # exclude and priority matching live in the core now.
     rows = []
 
-    for session_item in session_list:
-        try:
-            # Get session date text
-            date_text = None
+    if batch_rows is not None:
+        for session_item, batch_row in zip(session_list, batch_rows):
+            date_text = batch_row.get("dateText") or ""
+            has_button = bool(batch_row.get("hasButton"))
+            rows.append({
+                "text": date_text,
+                "available": bool(date_text and has_button),
+                "payload": session_item,
+            })
+            if date_text and has_button:
+                debug.log(f"[KKTIX DATE] Available session: {date_text}")
+    else:
+        for session_item in session_list:
             try:
-                # Priority 1: span.timezoneSuffix
-                date_elem = await session_item.query_selector('span.timezoneSuffix')
-                if date_elem:
-                    date_text = await date_elem.get_html()
-                    date_text = util.remove_html_tags(date_text).strip()
-            except:
-                pass
-
-            if not date_text:
+                # Get session date text
+                date_text = None
                 try:
-                    # Fallback: .event-info > a > p
-                    date_elem = await session_item.query_selector('.event-info > a > p')
+                    # Priority 1: span.timezoneSuffix
+                    date_elem = await session_item.query_selector('span.timezoneSuffix')
                     if date_elem:
                         date_text = await date_elem.get_html()
                         date_text = util.remove_html_tags(date_text).strip()
                 except:
                     pass
 
-            # Check if button exists
-            button_elem = await session_item.query_selector('div.content > a.btn-point')
+                if not date_text:
+                    try:
+                        # Fallback: .event-info > a > p
+                        date_elem = await session_item.query_selector('.event-info > a > p')
+                        if date_elem:
+                            date_text = await date_elem.get_html()
+                            date_text = util.remove_html_tags(date_text).strip()
+                    except:
+                        pass
 
-            rows.append({
-                "text": date_text or "",
-                "available": bool(date_text and button_elem),
-                "payload": button_elem,
-            })
-            if date_text and button_elem:
-                debug.log(f"[KKTIX DATE] Available session: {date_text}")
-        except Exception as exc:
-            debug.log(f"[KKTIX DATE] Error processing session: {exc}")
-            continue
+                # Check if button exists
+                button_elem = await session_item.query_selector('div.content > a.btn-point')
+
+                rows.append({
+                    "text": date_text or "",
+                    "available": bool(date_text and button_elem),
+                    "payload": button_elem,
+                })
+                if date_text and button_elem:
+                    debug.log(f"[KKTIX DATE] Available session: {date_text}")
+            except Exception as exc:
+                debug.log(f"[KKTIX DATE] Error processing session: {exc}")
+                continue
 
     chosen_index = date_selection.select_date(rows, config_view)
 
@@ -1458,10 +1506,15 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
 
     target_button = rows[chosen_index]["payload"]
 
-    # Click selected button
+    # Click selected button. In batch mode the payload is the li
+    # element, so resolve its buy button now -- once, for the chosen
+    # row only (issue #84); if it has vanished since the batch read,
+    # the click fails the same way a missing per-row payload did.
     is_date_clicked = False
     try:
         debug.log("[KKTIX DATE SELECT] Clicking selected session button...")
+        if batch_rows is not None:
+            target_button = await target_button.query_selector('div.content > a.btn-point')
         await target_button.click()
         is_date_clicked = True
         debug.log(f"[KKTIX DATE SELECT] Session selection completed successfully")
