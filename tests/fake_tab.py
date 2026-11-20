@@ -106,6 +106,8 @@ class FakeTab:
         self.reload_calls = 0
         self.sleep_calls = []
         self.evaluate_calls = []
+        self.get_content_calls = 0
+        self._content = ""
         self._elements = {}
         self._elements_all = {}
         self._elements_all_queue = {}
@@ -178,6 +180,14 @@ class FakeTab:
     def handlers_for(self, event_type):
         """The handlers currently registered for ``event_type``."""
         return list(self._handlers.get(event_type, []))
+
+    def set_content(self, html):
+        """Set the canned page source returned by get_content()."""
+        self._content = html
+
+    async def get_content(self):
+        self.get_content_calls += 1
+        return self._content
 
     async def get(self, url):
         self.get_calls.append(url)

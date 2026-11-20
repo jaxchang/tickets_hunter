@@ -1047,19 +1047,6 @@ async def nodriver_cityline_main(ctx):
     date_config = config_views.date_view(config_dict)
     sound_config = config_views.play_sound_view(config_dict)
 
-    if 'msg.cityline.com' in url or 'event.cityline.com' in url:
-        is_dom_ready = False
-        try:
-            html_body = await tab.get_content()
-            if html_body:
-                if len(html_body) > 10240:
-                    is_dom_ready = True
-        except Exception as exc:
-            pass
-        if is_dom_ready:
-            #await nodriver_cityline_auto_retry_access(tab, url, config_dict)
-            pass
-
     # Cookie acceptance (FR-010)
     if '.cityline.com/Events.html' in url:
         await nodriver_cityline_cookie_accept(tab)

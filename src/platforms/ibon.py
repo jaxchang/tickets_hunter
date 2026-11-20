@@ -4174,6 +4174,22 @@ def ibon_build_skip_url(area_dict):
     return util.IBON_ORDER_BASE_URL + path
 
 
+async def _ibon_is_name_based_event_page(tab):
+    """Whether the event page is a real-name (實名制) page.
+
+    The verdict is computed in-page (issue #88): the check used to
+    fetch the full page HTML via get_content() on every pass just to
+    test its length and one substring.
+    """
+    try:
+        return bool(await tab.evaluate(
+            "(function() { var html = document.documentElement.outerHTML; "
+            "return html.length > 1024 && html.indexOf('實名制') >= 0; })()"
+        ))
+    except Exception:
+        return False
+
+
 async def nodriver_ibon_main(ctx):
     tab = ctx.tab
     url = ctx.url
@@ -5151,17 +5167,7 @@ async def nodriver_ibon_main(ctx):
                 is_match_target_feature = True
                 is_finish_checkbox_click = await nodriver_ibon_ticket_agree(tab)
                 if is_finish_checkbox_click:
-                    is_name_based = False
-                    try:
-                        html_body = await tab.get_content()
-                        #print("html_body:",len(html_body))
-                        if html_body:
-                            if len(html_body) > 1024:
-                                if '實名制' in html_body:
-                                    is_name_based = True
-                    except Exception as exc:
-                        #print(exc)
-                        pass
+                    is_name_based = await _ibon_is_name_based_event_page(tab)
 
                     if not is_name_based:
                         is_button_clicked = await nodriver_press_button(tab, 'a.btn.btn-pink.continue')
