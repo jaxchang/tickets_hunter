@@ -218,12 +218,16 @@ async def nodriver_tixcraft_verify(tab, config_dict, fail_list):
 async def nodriver_tixcraft_date_auto_select(tab, url, config_dict, domain_name):
     debug = util.create_debug_logger(config_dict)
 
-    # Issue #188: Check sold out cooldown before proceeding
+    # Issue #188: Check sold out cooldown before proceeding.
+    # Non-blocking (issue #80): while the cooldown is active this pass
+    # simply does nothing and the main loop's next pass re-checks the
+    # timestamp -- the #376 pattern. The timestamp is the single
+    # source of truth: it expires on its own and a new sold-out alert
+    # re-arms it, so it is no longer reset by hand after waiting.
     if _state and _state.get("sold_out_cooldown_until", 0) > time.time():
         remaining = _state["sold_out_cooldown_until"] - time.time()
-        debug.log(f"[DATE SELECT] Sold out cooldown active, waiting {remaining:.1f}s...")
-        await asyncio.sleep(remaining)
-        _state["sold_out_cooldown_until"] = 0  # Reset after waiting
+        debug.log(f"[DATE SELECT] Sold out cooldown active, skipping this pass ({remaining:.1f}s left)")
+        return False
 
     # Read config via the date view (issue #30, ADR 0004)
     config_view = config_views.date_view(config_dict)
