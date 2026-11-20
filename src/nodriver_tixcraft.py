@@ -960,6 +960,7 @@ async def main(args):
                 write_last_url_to_file(url)
                 cloudflare_checked = False
                 cloudflare_fail_count = 0
+                cf_note_clean(cf_state)  # A new URL ends the solve episode (issue #104)
             last_url = url
 
         if is_maxbot_paused:
@@ -1025,9 +1026,18 @@ async def main(args):
             is_cloudflare = await detect_cloudflare_challenge(tab, show_debug=config_dict.get("advanced", {}).get("verbose", False))
             cloudflare_checked = True
             if is_cloudflare:
+                if cf_note_detected(cf_state, url):
+                    # The challenge keeps reappearing after reported
+                    # solves on this URL: the handler's success is not
+                    # sticking (issue #104). Stop clicking and wait
+                    # for a human, whose clicks do pass.
+                    cf_enter_wait(cf_state, url, pass_count)
+                    announce_cf_wait(config_dict, "Verification keeps reappearing after automatic solving.")
+                    continue  # The wait starts now: no dispatch this pass
                 print("[CLOUDFLARE] Challenge page detected, attempting to solve...")
                 cf_result = await handle_cloudflare_challenge(tab, config_dict)
                 if cf_result:
+                    cf_note_solved(cf_state, url)
                     cloudflare_checked = False  # Re-check after successful handling
                     cloudflare_fail_count = 0
                     continue
@@ -1036,16 +1046,10 @@ async def main(args):
                     cloudflare_checked = False  # Allow retry on next loop iteration
                     if cloudflare_fail_count >= 3:
                         cf_enter_wait(cf_state, url, pass_count)
-                        print("[CLOUDFLARE] ======================================================")
-                        print("[CLOUDFLARE] Human verification needs manual completion.")
-                        print("[CLOUDFLARE] Automation is PAUSED on this page until the verification clears.")
-                        print("[CLOUDFLARE] ======================================================")
-                        if config_views.play_sound_view(config_dict)["ticket"]:
-                            try:
-                                play_sound_while_ordering(config_dict)
-                            except Exception:
-                                pass  # A failed alert sound must not kill the loop
+                        announce_cf_wait(config_dict, "Human verification needs manual completion.")
                         continue  # The wait starts now: no dispatch this pass
+            else:
+                cf_note_clean(cf_state)  # Clean check: the solve episode is over
 
         # Platform dispatch (issue #34, ADR 0005): run every registry
         # entry whose matcher accepts this URL, in registry order. A

@@ -549,8 +549,7 @@ OCR 與驗證碼
 ├── launch_maxbot                         # 支援 instance= 參數（多開序號實例）
 └── parse_nodriver_result
 
-Cloudflare 模板匹配
-├── get_cf_template_paths
+Cloudflare 驗證 fallback
 └── verify_cf_with_templates
 ```
 

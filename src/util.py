@@ -2357,92 +2357,35 @@ def send_telegram_message_async(
     thread.start()
 
 
-# Cloudflare Turnstile template paths
-def get_cf_template_paths() -> list:
-    """
-    Get list of Cloudflare Turnstile template image paths for verify_cf().
-
-    Templates are tried in order - first successful match is used.
-    All templates should be 111x73 pixels with checkbox centered.
-
-    Returns:
-        list: List of absolute paths to template images
-    """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    assets_dir = os.path.join(script_dir, "assets")
-
-    # Templates in priority order
-    template_files = [
-        "cf_template_default.png",          # 預設模板
-        "cf_template_ibon.png",             # ibon 專用
-    ]
-
-    templates = []
-    for filename in template_files:
-        path = os.path.join(assets_dir, filename)
-        if os.path.exists(path):
-            templates.append(path)
-
-    return templates
-
-
 async def verify_cf_with_templates(tab, templates: list = None, show_debug: bool = False) -> bool:
     """
-    Try to verify Cloudflare Turnstile using multiple templates.
+    Try zendriver's built-in Turnstile solver once.
 
-    Order:
-    1. Built-in template (English) - try first
-    2. Custom templates in order
+    The name and signature date from the nodriver era, when
+    Tab.verify_cf accepted template images (template_image=/flash=);
+    zendriver's verify_cf(click_delay, timeout, challenge_selector,
+    flash_corners) supports neither, so the old calls raised TypeError
+    on every attempt and this fallback never worked (issue #104).
+    The templates argument is accepted for compatibility and ignored.
 
     Args:
-        tab: nodriver tab object
-        templates: List of template paths (uses default if None)
+        tab: zendriver tab object
+        templates: ignored (kept for signature compatibility)
         show_debug: Whether to print debug messages
 
     Returns:
-        bool: True if verification succeeded with any template
+        bool: True if verify_cf completed without raising. The caller
+        still verifies the challenge actually cleared.
     """
-    # Step 1: Try built-in template first (English version)
     try:
+        await tab.verify_cf()
         if show_debug:
-            print("[CF] Trying built-in template...")
-        await tab.verify_cf(flash=show_debug)
-        if show_debug:
-            print("[CF] Success with built-in template")
+            print("[CF] verify_cf completed")
         return True
     except Exception as exc:
         if show_debug:
-            print(f"[CF] Built-in template failed: {exc}")
-
-    # Step 2: Try custom templates
-    if templates is None:
-        templates = get_cf_template_paths()
-
-    if not templates:
-        if show_debug:
-            print("[CF] No custom templates found")
+            print(f"[CF] verify_cf failed: {exc}")
         return False
-
-    for template_path in templates:
-        try:
-            template_name = os.path.basename(template_path)
-            if show_debug:
-                print(f"[CF] Trying template: {template_name}")
-
-            await tab.verify_cf(template_image=template_path, flash=show_debug)
-
-            if show_debug:
-                print(f"[CF] Success with template: {template_name}")
-            return True
-
-        except Exception as exc:
-            if show_debug:
-                print(f"[CF] Template {template_name} failed: {exc}")
-            continue
-
-    if show_debug:
-        print("[CF] All templates failed")
-    return False
 
 
 # ============================================================
