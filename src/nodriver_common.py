@@ -907,13 +907,12 @@ async def detect_cloudflare_challenge(tab, show_debug=False):
         except Exception:
             pass
 
-        # Layer 3: HTML keyword detection (full-page interstitial fallback)
-        html_content = await tab.get_content()
-        if not html_content:
-            return False
-
-        html_lower = html_content.lower()
-
+        # Layer 3: HTML keyword detection (full-page interstitial fallback).
+        # The scan runs in-page and only the verdict crosses back
+        # (issue #90): the full page HTML used to be fetched and
+        # lowercased in Python on every call. An evaluate failure
+        # propagates to the outer except below, exactly where a
+        # get_content failure landed before.
         # Note: "cloudflare" alone is too broad (matches CDN/analytics scripts)
         cloudflare_indicators = [
             "cf-browser-verification",
@@ -924,7 +923,11 @@ async def detect_cloudflare_challenge(tab, show_debug=False):
             "verify you are human",
         ]
 
-        detected = any(indicator in html_lower for indicator in cloudflare_indicators)
+        detected = bool(await tab.evaluate(
+            "(function() { var html = document.documentElement.outerHTML.toLowerCase(); return "
+            + json.dumps(cloudflare_indicators)
+            + ".some(function(s) { return html.indexOf(s) >= 0; }); })()"
+        ))
         if detected:
             debug.log("[CF DETECT] Cloudflare keywords found in HTML")
         return detected
