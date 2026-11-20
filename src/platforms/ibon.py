@@ -111,7 +111,7 @@ _state.declare_session("played_sound_ticket", "sound plays once per purchase flo
 _state.declare_session("played_sound_order", "sound plays once per purchase flow")
 _state.declare_session("queue_it_enter_time", "queue wait timing across pages")
 _state.declare_session("shown_checkout_message", "checkout message shows once per run")
-_state.declare_session("alert_handler_registered", "alert handler registers once per process")
+_state.declare_session("alert_handler_tab", "the tab object holding the global alert handler; the handler lives on that tab's CDP connection, so a different working tab re-registers (issue #94)")
 _state.declare_session("livemap_failed_areas", "livemap retry memory across rounds")
 _state.declare_session("livemap_last_attempt", "livemap retry memory across rounds")
 _state.declare_session("livemap_perf_id", "livemap poll bookkeeping: performance the cache belongs to")
@@ -127,7 +127,7 @@ def _ensure_state():
     Initialize _state with all required keys (idempotent).
 
     Callable from any entry point (main loop, early alert-handler registration)
-    so that touching _state["alert_handler_registered"] before nodriver_ibon_main
+    so that touching _state["alert_handler_tab"] before nodriver_ibon_main
     runs cannot strand the other keys uninitialized.
     """
     defaults = {
@@ -136,7 +136,7 @@ def _ensure_state():
         "played_sound_order": False,
         "queue_it_enter_time": None,
         "shown_checkout_message": False,
-        "alert_handler_registered": False,
+        "alert_handler_tab": None,
         "livemap_failed_areas": {},
         "livemap_last_attempt": None,
         "livemap_perf_id": None,
@@ -155,10 +155,13 @@ async def register_ibon_alert_handler(tab, config_dict):
     """
     Register the global JavaScriptDialogOpening handler for ibon native alerts.
 
-    Idempotent via _state["alert_handler_registered"] -- safe to call from both
-    early (pre-navigation) and lazy (inside nodriver_ibon_main) paths without
-    duplicating handlers, which would cause the same alert to be dispatched
-    multiple times.
+    Keyed by the holding tab via _state["alert_handler_tab"] -- safe to
+    call from both early (pre-navigation) and lazy (inside
+    nodriver_ibon_main) paths: the given tab registers when it does not
+    already hold the registration, so handlers are never duplicated on
+    one connection, and a replaced working tab gets its own handler on
+    its own connection (the handler lives on the tab's connection; a
+    process-wide flag would leave a new tab unhandled, issue #94).
 
     Should be called BEFORE navigating to ibon homepage so the handler is
     attached when window.alert(...) fires on page load (e.g. ibon's
@@ -167,7 +170,7 @@ async def register_ibon_alert_handler(tab, config_dict):
     debug = util.create_debug_logger(config_dict)
     _ensure_state()
 
-    if _state["alert_handler_registered"]:
+    if _state.get("alert_handler_tab") is tab:
         return
 
     async def handle_ibon_alert(event):
@@ -210,7 +213,7 @@ async def register_ibon_alert_handler(tab, config_dict):
 
     try:
         tab.add_handler(cdp.page.JavascriptDialogOpening, handle_ibon_alert)
-        _state["alert_handler_registered"] = True
+        _state["alert_handler_tab"] = tab
         debug.log("[IBON ALERT] Global alert handler registered")
     except Exception as handler_exc:
         debug.log(f"[IBON ALERT][DEGRADED] Failed to register alert handler: {handler_exc}")

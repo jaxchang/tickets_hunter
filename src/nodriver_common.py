@@ -936,6 +936,43 @@ async def detect_cloudflare_challenge(tab, show_debug=False):
         debug.log(f"Cloudflare detection error: {exc}")
         return False
 
+# ===== Stale tab sweep =====
+
+# The main loop runs roughly every 50ms; a non-working tab still open
+# this many passes (~30s) after the sweep first saw it is a leftover
+# (popup, redirect remnant) and is closed (issue #94, ADR 0009).
+STALE_TAB_MAX_AGE_PASSES = 600
+
+
+async def close_stale_tabs(tabs, working_tab, first_seen, current_pass):
+    """Close non-working tabs older than STALE_TAB_MAX_AGE_PASSES.
+
+    ``first_seen`` maps a tab to the pass count when the sweep first
+    saw it as a non-working tab; the caller keeps the dict across
+    passes. The working tab is never closed and never tracked; tabs
+    no longer present are forgotten. Returns the tabs that were
+    closed.
+    """
+    present = set(tabs)
+    for forgotten in [t for t in first_seen if t not in present]:
+        del first_seen[forgotten]
+
+    closed = []
+    for tab in tabs:
+        if tab is working_tab:
+            first_seen.pop(tab, None)
+            continue
+        seen_at = first_seen.setdefault(tab, current_pass)
+        if current_pass - seen_at > STALE_TAB_MAX_AGE_PASSES:
+            try:
+                await tab.close()
+                closed.append(tab)
+            except Exception:
+                pass
+            first_seen.pop(tab, None)
+    return closed
+
+
 def _find_cf_iframe_in_dom(node, depth=0):
     """Walk pierced DOM tree to find Cloudflare Turnstile iframe node.
 

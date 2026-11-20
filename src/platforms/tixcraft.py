@@ -1408,22 +1408,22 @@ async def nodriver_tixcraft_ticket_main_ocr(tab, config_dict, ocr, Captcha_Brows
             _state["ocr_completed_url"] = current_url
 
 
-async def nodriver_tixcraft_main(ctx):
-    tab = ctx.tab
-    url = ctx.url
-    config_dict = ctx.config_dict
-    ocr = ctx.ocr
-    Captcha_Browser = ctx.captcha_browser
+async def register_tixcraft_alert_handler(tab, config_dict):
+    """Register the global JavaScriptDialogOpening handler for tixcraft.
 
-    # 函數開始時檢查暫停
-    if await check_and_handle_pause(config_dict):
-        return None
-
+    The handler lives on the tab's CDP connection, so the registration
+    is keyed by the tab holding it (_state["alert_handler_tab"]): when
+    the working tab is replaced mid-run (cityline closes the original
+    tab and the main loop adopts another), the new tab's connection
+    has no handler and must register its own. The process-wide boolean
+    flag this replaces stayed True and silently left the new
+    connection without alert handling (issue #94).
+    """
     debug = util.create_debug_logger(config_dict)
 
-    # Global alert handler - auto-dismiss all alerts (sold out, errors, etc.)
-    # Handles alerts that appear after page navigation (e.g., area selection redirects)
-    # Reference: KHAM platform implementation (platforms/kham.py)
+    if _state.get("alert_handler_tab") is tab:
+        return
+
     async def handle_global_alert(event):
         # Skip alert handling when bot is paused (let user handle manually)
         if os.path.exists(util.get_instance_state_path(CONST_MAXBOT_INT28_FILE)):
@@ -1491,6 +1491,30 @@ async def nodriver_tixcraft_main(ctx):
                 _state["sold_out_cooldown_until"] = cooldown_until
                 debug.log(f"[GLOBAL ALERT] Sold out detected, setting cooldown for {interval}s")
 
+    try:
+        tab.add_handler(cdp.page.JavascriptDialogOpening, handle_global_alert)
+        _state["alert_handler_tab"] = tab
+        debug.log(f"[GLOBAL ALERT] Global alert handler registered")
+    except Exception as handler_exc:
+        debug.log(f"[GLOBAL ALERT] Failed to register alert handler: {handler_exc}")
+
+
+async def nodriver_tixcraft_main(ctx):
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+    ocr = ctx.ocr
+    Captcha_Browser = ctx.captcha_browser
+
+    # 函數開始時檢查暫停
+    if await check_and_handle_pause(config_dict):
+        return None
+
+    debug = util.create_debug_logger(config_dict)
+
+    # Global alert handler - auto-dismiss all alerts (sold out, errors, etc.)
+    # Handles alerts that appear after page navigation (e.g., area selection redirects)
+    # Reference: KHAM platform implementation (platforms/kham.py)
     if not _state:
         _state.update({
             "fail_list": [],
@@ -1502,7 +1526,7 @@ async def nodriver_tixcraft_main(ctx):
             "area_retry_count": 0,
             "played_sound_ticket": False,
             "played_sound_order": False,
-            "alert_handler_registered": False,
+            "alert_handler_tab": None,
             "captcha_alert_detected": False,
             "captcha_submit_until": 0,
             "ocr_completed_url": "",
@@ -1545,15 +1569,9 @@ async def nodriver_tixcraft_main(ctx):
     date_config = config_views.date_view(config_dict)
     sound_config = config_views.play_sound_view(config_dict)
 
-    # Register global alert handler (remains active throughout session)
-    # Only register once to prevent infinite loop
-    if not _state.get("alert_handler_registered", False):
-        try:
-            tab.add_handler(cdp.page.JavascriptDialogOpening, handle_global_alert)
-            _state["alert_handler_registered"] = True
-            debug.log(f"[GLOBAL ALERT] Global alert handler registered")
-        except Exception as handler_exc:
-            debug.log(f"[GLOBAL ALERT] Failed to register alert handler: {handler_exc}")
+    # Register the global alert handler on this tab's connection
+    # (re-registers when the working tab has changed).
+    await register_tixcraft_alert_handler(tab, config_dict)
 
     # Queue-it virtual waiting room detection (TixCraft + Ticketmaster SG)
     # Pattern: ported from platforms/ibon.py — URL-based, customerId-agnostic.

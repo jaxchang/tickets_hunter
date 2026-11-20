@@ -95,7 +95,7 @@ _state.declare_session("played_sound_order", "sound plays once per purchase flow
 _state.declare_session("got_ticket_detected", "success-page latch for the whole run")
 _state.declare_session("success_actions_done", "success actions run once per run")
 _state.declare_session("reg_execution_count", "registration attempt counter across rounds")
-_state.declare_session("alert_handler_registered", "alert handler registers once per process")
+_state.declare_session("alert_handler_tab", "the tab object holding the global alert handler; the handler lives on that tab's CDP connection, so a different working tab re-registers (issue #94)")
 _state.declare_session("alert_needs_reload", "set by the alert handler on any page, consumed on the registrations page")
 _state.declare_session("guest_modal_checked", "guest modal check state for the registrations flow")
 _state.declare_session("guest_modal_last_check_time", "guest modal check pacing for the registrations flow")
@@ -2577,42 +2577,20 @@ async def _kktix_is_registrations_dom_ready(tab):
         return False
 
 
-async def nodriver_kktix_main(ctx):
-    tab = ctx.tab
-    url = ctx.url
-    config_dict = ctx.config_dict
+async def register_kktix_alert_handler(tab, config_dict):
+    """Register the global JavaScriptDialogOpening handler for kktix.
 
+    Keyed by the holding tab for the same reason as tixcraft's
+    registration (see register_tixcraft_alert_handler): the handler
+    lives on the tab's CDP connection, and a replaced working tab
+    must register its own instead of being blocked by a process-wide
+    flag (issue #94).
+    """
     debug = util.create_debug_logger(config_dict)
-    date_config = config_views.date_view(config_dict)
-    sound_config = config_views.play_sound_view(config_dict)
 
-    if not _state:
-        _state.update({
-            "fail_list": [],
-            "captcha_pending": None,
-            "start_time": None,
-            "done_time": None,
-            "elapsed_time": None,
-            "is_popup_checkout": False,
-            "played_sound_ticket": False,
-            "played_sound_order": False,
-            "got_ticket_detected": False,
-            "success_actions_done": False,
-            "reg_execution_count": 0,
-            "alert_handler_registered": False,
-            "alert_needs_reload": False,
-            "guest_modal_checked": False,
-            "guest_modal_last_check_time": 0,
-            "guest_modal_status_logged": False,
-            "last_ticket_already_selected_log_value": None,
-            "printed_completed": False,
-            "last_homepage_redirect_time": 0,
-            # Cooldown guard: which page we last submitted, and when.
-            "next_button_pressed_url": "",
-            "next_button_pressed_time": 0,
-        })
+    if _state.get("alert_handler_tab") is tab:
+        return
 
-    # Global alert handler - auto-dismiss KKTIX sold-out alerts
     async def handle_kktix_alert(event):
         # Skip alert handling when bot is paused (let user handle manually)
         if os.path.exists(util.get_instance_state_path(CONST_MAXBOT_INT28_FILE)):
@@ -2658,14 +2636,53 @@ async def nodriver_kktix_main(ctx):
                 else:
                     debug.log(f"[KKTIX ALERT] Failed to dismiss alert: {dismiss_exc}")
 
-    # Register global alert handler (only once per session)
-    if not _state.get("alert_handler_registered", False):
-        try:
-            tab.add_handler(cdp.page.JavascriptDialogOpening, handle_kktix_alert)
-            _state["alert_handler_registered"] = True
-            debug.log("[KKTIX ALERT] Global alert handler registered")
-        except Exception as handler_exc:
-            debug.log(f"[KKTIX ALERT] Failed to register alert handler: {handler_exc}")
+    try:
+        tab.add_handler(cdp.page.JavascriptDialogOpening, handle_kktix_alert)
+        _state["alert_handler_tab"] = tab
+        debug.log("[KKTIX ALERT] Global alert handler registered")
+    except Exception as handler_exc:
+        debug.log(f"[KKTIX ALERT] Failed to register alert handler: {handler_exc}")
+
+
+async def nodriver_kktix_main(ctx):
+    tab = ctx.tab
+    url = ctx.url
+    config_dict = ctx.config_dict
+
+    debug = util.create_debug_logger(config_dict)
+    date_config = config_views.date_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
+
+    if not _state:
+        _state.update({
+            "fail_list": [],
+            "captcha_pending": None,
+            "start_time": None,
+            "done_time": None,
+            "elapsed_time": None,
+            "is_popup_checkout": False,
+            "played_sound_ticket": False,
+            "played_sound_order": False,
+            "got_ticket_detected": False,
+            "success_actions_done": False,
+            "reg_execution_count": 0,
+            "alert_handler_tab": None,
+            "alert_needs_reload": False,
+            "guest_modal_checked": False,
+            "guest_modal_last_check_time": 0,
+            "guest_modal_status_logged": False,
+            "last_ticket_already_selected_log_value": None,
+            "printed_completed": False,
+            "last_homepage_redirect_time": 0,
+            # Cooldown guard: which page we last submitted, and when.
+            "next_button_pressed_url": "",
+            "next_button_pressed_time": 0,
+        })
+
+    # Global alert handler - auto-dismiss KKTIX sold-out alerts
+    # Register the global alert handler on this tab's connection
+    # (re-registers when the working tab has changed).
+    await register_kktix_alert_handler(tab, config_dict)
 
     is_url_contain_sign_in = False
     if is_kktix_login_page(url):

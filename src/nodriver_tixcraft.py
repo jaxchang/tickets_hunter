@@ -863,6 +863,10 @@ async def main(args):
     # heartbeat_writer does the file I/O on its own schedule.
     heartbeat_filename = settings.CONST_HEARTBEAT_FILE
     loop_state = {"last_tick": time.time()}
+    # Stale-tab sweep bookkeeping (issue #94): pass counter and the
+    # first-seen pass of each non-working tab.
+    pass_count = 0
+    tab_first_seen = {}
     heartbeat_task = asyncio.create_task(heartbeat_writer(
         util.get_instance_state_path(heartbeat_filename), loop_state))
     last_empty_url_log = 0.0  # [URL DIAG] Step 0: throttle empty-url diagnostics
@@ -884,6 +888,7 @@ async def main(args):
 
     while True:
         await asyncio.sleep(0.05)
+        pass_count += 1
 
         config_dict, config_mtime = await reload_config(config_dict, config_mtime, config_filepath)
 
@@ -1007,6 +1012,15 @@ async def main(args):
                 if new_tab is not None:
                     tab = new_tab
                     ctx.tab = new_tab
+
+        # Stale-tab sweep (issue #94, ADR 0009): close non-working
+        # tabs left open past the age cap; the working tab is exempt.
+        # driver.tabs is a local property (no CDP round-trip), so
+        # this runs every pass.
+        if driver is not None:
+            closed_tabs = await close_stale_tabs(driver.tabs, tab, tab_first_seen, pass_count)
+            if closed_tabs:
+                debug.log(f"[MAIN] Closed {len(closed_tabs)} stale tab(s) left open by earlier pages")
 
 def run_ocr_self_test():
     """Load both OCR models and read one rendered image; 0 means OCR works.
