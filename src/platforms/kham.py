@@ -460,9 +460,6 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
     """
     debug = util.create_debug_logger(config_dict)
 
-    # Wait for page to load
-    await tab.sleep(0.6)
-
     # Read config via the date view (issue #30, ADR 0004)
     config_view = config_views.date_view(config_dict)
     auto_select_mode = config_view["mode"]
@@ -482,24 +479,55 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
     is_rwd = is_utk_rwd_url(domain_name)
     selectors = CONST_UTK_RWD_DATE_ROW_SELECTORS if is_rwd else (selector,)
 
+    # Smart-poll for the rows (issue #82): this replaces the fixed
+    # tab.sleep(0.6) that used to run before the query on every pass.
+    # Same 0.6s cap, but the wait ends as soon as rows appear, and the
+    # pause-check variant keeps the pause key working during the wait.
     area_list = None
-    try:
-        for each_selector in selectors:
-            area_list = await tab.query_selector_all(each_selector)
-            if area_list:
-                break
-    except Exception as exc:
-        debug.log(f"query_selector_all error: {exc}")
+    used_selector = selectors[0]
+    for _poll_attempt in range(7):
+        try:
+            for each_selector in selectors:
+                area_list = await tab.query_selector_all(each_selector)
+                if area_list:
+                    used_selector = each_selector
+                    break
+        except Exception as exc:
+            debug.log(f"query_selector_all error: {exc}")
+        if area_list:
+            break
+        if _poll_attempt < 6:
+            await asyncio_sleep_with_pause_check(0.1, config_dict)
+
+    # Batch-fetch all row HTML in one CDP round-trip (issue #82, the
+    # tixcraft date handler's precedent); a row missing from the
+    # batch result falls back to its own get_html() below.
+    all_row_htmls = None
+    if area_list:
+        try:
+            all_row_htmls = await tab.evaluate(
+                "Array.from(document.querySelectorAll("
+                + json.dumps(used_selector)
+                + ")).map(r => r.outerHTML)"
+            )
+        except Exception:
+            all_row_htmls = None
 
     # Rows for the shared date-selection core (issue #28, ADR 0003):
     # availability is decided here by the HTML filters below; keyword
-    # exclude and priority matching live in the core.
+    # exclude and priority matching live in the core. row_htmls stays
+    # index-aligned with rows so the chosen row's coming-soon recheck
+    # below can reuse the HTML instead of fetching it again.
     rows = []
+    row_htmls = []
 
     if area_list and len(area_list) > 0:
-        for row in area_list:
+        for row_index, row in enumerate(area_list):
             try:
-                row_html = await row.get_html()
+                if all_row_htmls and row_index < len(all_row_htmls):
+                    row_html = all_row_htmls[row_index]
+                else:
+                    row_html = await row.get_html()
                 row_text = util.remove_html_tags(row_html)
                 row_text = row_text.strip()
             except Exception as exc:
@@ -511,6 +539,7 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
 
             if util.reset_row_text_if_match_keyword_exclude(config_dict, row_text):
                 rows.append({"text": row_text, "available": False, "payload": row})
+                row_htmls.append(row_html)
                 continue
 
             row_is_enabled = True
@@ -565,6 +594,7 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
                 "available": row_is_enabled,
                 "payload": row,
             })
+            row_htmls.append(row_html)
 
     available_rows = [row for row in rows if row["available"]]
 
@@ -602,9 +632,11 @@ async def nodriver_kham_date_auto_select(tab, domain_name, config_dict):
     is_coming_soon = False
 
     if target_row:
-        # Issue #188: Check if target is "coming soon" button before clicking
+        # Issue #188: Check if target is "coming soon" button before clicking.
+        # The recheck reuses the row HTML already fetched above (issue
+        # #82) instead of paying another get_html() round-trip.
         try:
-            target_row_html = await target_row.get_html()
+            target_row_html = row_htmls[chosen_index]
             if '尚未開賣' in target_row_html:
                 is_coming_soon = True
                 debug.log("[TICKET.COM] Coming soon button detected, skip clicking")
