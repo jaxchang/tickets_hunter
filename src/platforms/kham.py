@@ -2164,7 +2164,7 @@ async def nodriver_kham_main(ctx):
                     pass
 
                 # Check adjacent seat checkbox
-                if config_dict["advanced"]["disable_adjacent_seat"]:
+                if config_views.disable_adjacent_seat(config_dict):
                     if "ticket.com.tw" in url:
                         await nodriver_ticket_allow_not_adjacent_seat(tab, config_dict)
                     if "kham.com.tw" in url:
@@ -2388,7 +2388,7 @@ async def nodriver_kham_main(ctx):
                     pass
 
             # Check adjacent seat checkbox
-            if config_dict["advanced"]["disable_adjacent_seat"]:
+            if config_views.disable_adjacent_seat(config_dict):
                 if "ticket.com.tw" in url:
                     await nodriver_ticket_allow_not_adjacent_seat(tab, config_dict)
                 else:

@@ -443,7 +443,7 @@ async def nodriver_kham_seat_auto_select(tab, config_dict, rwd=False):
     """
     is_seat_assigned = False
     ticket_number = config_views.ticket_number(config_dict)
-    allow_non_adjacent = config_dict["advanced"]["disable_adjacent_seat"]
+    allow_non_adjacent = config_views.disable_adjacent_seat(config_dict)
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
 

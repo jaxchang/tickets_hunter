@@ -4530,7 +4530,7 @@ async def nodriver_ibon_main(ctx):
                     _state["livemap_last_attempt"] = None
 
                     # Step 1: Handle non-adjacent seat checkbox
-                    if config_dict["advanced"]["disable_adjacent_seat"]:
+                    if config_views.disable_adjacent_seat(config_dict):
                         try:
                             await nodriver_ibon_allow_not_adjacent_seat(tab, config_dict)
                         except Exception as exc:
@@ -4647,7 +4647,7 @@ async def nodriver_ibon_main(ctx):
                     _state["livemap_last_attempt"] = None
 
                     # Step 1: Handle non-adjacent seat checkbox
-                    if config_dict["advanced"]["disable_adjacent_seat"]:
+                    if config_views.disable_adjacent_seat(config_dict):
                         try:
                             await nodriver_ibon_allow_not_adjacent_seat(tab, config_dict)
                         except Exception as exc:
@@ -4816,7 +4816,7 @@ async def nodriver_ibon_main(ctx):
             debug.log("[NEW EVENTBUY] Processing EventBuy page")
 
             # Check disable_adjacent_seat
-            if config_dict["advanced"]["disable_adjacent_seat"]:
+            if config_views.disable_adjacent_seat(config_dict):
                 is_finish_checkbox_click = await nodriver_check_checkbox(tab, '.asp-checkbox > input[type="checkbox"]:not(:checked)')
 
             # Step 1: Assign ticket number first with retry (exponential backoff)
@@ -4972,7 +4972,7 @@ async def nodriver_ibon_main(ctx):
                     is_do_ibon_performance_with_ticket_number = True
 
                 if is_do_ibon_performance_with_ticket_number:
-                    if config_dict["advanced"]["disable_adjacent_seat"]:
+                    if config_views.disable_adjacent_seat(config_dict):
                         # TODO:
                         is_finish_checkbox_click = await nodriver_check_checkbox(tab, '.asp-checkbox > input[type="checkbox"]:not(:checked)')
 

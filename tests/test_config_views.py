@@ -337,5 +337,23 @@ class PlaySoundViewTest(unittest.TestCase):
         self.assertEqual(config_views.play_sound_view(config)["order"], False)
 
 
+class DisableAdjacentSeatTest(unittest.TestCase):
+    def test_present_value_passes_through(self):
+        config = {"advanced": {"disable_adjacent_seat": True}}
+        self.assertIs(config_views.disable_adjacent_seat(config), True)
+        config["advanced"]["disable_adjacent_seat"] = False
+        self.assertIs(config_views.disable_adjacent_seat(config), False)
+
+    def test_missing_key_or_section_defaults_to_false(self):
+        self.assertIs(config_views.disable_adjacent_seat({"advanced": {}}), False)
+        self.assertIs(config_views.disable_adjacent_seat({}), False)
+
+    def test_view_is_computed_fresh_from_current_dict(self):
+        config = {"advanced": {"disable_adjacent_seat": False}}
+        self.assertIs(config_views.disable_adjacent_seat(config), False)
+        config["advanced"]["disable_adjacent_seat"] = True
+        self.assertIs(config_views.disable_adjacent_seat(config), True)
+
+
 if __name__ == "__main__":
     unittest.main()
