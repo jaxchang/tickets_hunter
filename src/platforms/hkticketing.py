@@ -2380,12 +2380,13 @@ async def nodriver_hkticketing_url_redirect(tab, url, config_dict):
         is_need_refresh = False
 
         try:
-            html_body = await tab.get_content()
-            if html_body:
-                for each_redirect_string in content_redirect_string_list:
-                    if each_redirect_string in html_body:
-                        is_need_refresh = True
-                        break
+            # Scan in-page and return only the verdict (issue #88):
+            # the full page HTML no longer crosses to Python.
+            is_need_refresh = bool(await tab.evaluate(
+                "(function() { var html = document.documentElement.outerHTML; return "
+                + json.dumps(content_redirect_string_list)
+                + ".some(function(s) { return html.indexOf(s) >= 0; }); })()"
+            ))
         except Exception as exc:
             pass
 
@@ -2425,12 +2426,12 @@ async def nodriver_hkticketing_content_refresh(tab, url, config_dict):
 
         is_need_refresh = False
         try:
-            html_body = await tab.get_content()
-            if html_body:
-                for each_retry_string in HKTICKETING_CONTENT_RETRY_STRING_LIST:
-                    if each_retry_string in html_body:
-                        is_need_refresh = True
-                        break
+            # Scan in-page and return only the verdict (issue #88).
+            is_need_refresh = bool(await tab.evaluate(
+                "(function() { var html = document.documentElement.outerHTML; return "
+                + json.dumps(HKTICKETING_CONTENT_RETRY_STRING_LIST)
+                + ".some(function(s) { return html.indexOf(s) >= 0; }); })()"
+            ))
         except Exception as exc:
             pass
 
@@ -2463,32 +2464,32 @@ async def nodriver_hkticketing_travel_iframe(tab, config_dict):
 
         for idx in range(iframe_count):
             try:
-                # Try to get iframe content (same-origin only)
-                iframe_content = await tab.evaluate(f'''
+                # Scan the iframe in-page and return only the verdict
+                # (issue #88): its innerHTML no longer crosses to
+                # Python. Same-origin only, as before.
+                iframe_has_error = await tab.evaluate(f'''
                     (function() {{
                         try {{
                             const iframe = document.querySelectorAll('iframe')[{idx}];
                             if (iframe && iframe.contentDocument) {{
-                                return iframe.contentDocument.body.innerHTML;
+                                const html = iframe.contentDocument.body.innerHTML;
+                                return {json.dumps(HKTICKETING_CONTENT_RETRY_STRING_LIST)}.some(function(s) {{ return html.indexOf(s) >= 0; }});
                             }}
                         }} catch(e) {{
                             // Cross-origin iframe cannot be accessed
                         }}
-                        return null;
+                        return false;
                     }})();
                 ''')
 
-                if iframe_content:
-                    for error_string in HKTICKETING_CONTENT_RETRY_STRING_LIST:
-                        if error_string in iframe_content:
-                            # Trigger redirect
-                            url = await tab.evaluate('window.location.href')
-                            domain_name = url.split('/')[2]
-                            new_url = "https://%s/default.aspx" % (domain_name)
-                            await tab.get(new_url)
-                            is_redirected = True
-                            debug.log(f"[HKTICKETING IFRAME] Error detected in iframe, redirected to: {new_url}")
-                            break
+                if iframe_has_error:
+                    # Trigger redirect
+                    url = await tab.evaluate('window.location.href')
+                    domain_name = url.split('/')[2]
+                    new_url = "https://%s/default.aspx" % (domain_name)
+                    await tab.get(new_url)
+                    is_redirected = True
+                    debug.log(f"[HKTICKETING IFRAME] Error detected in iframe, redirected to: {new_url}")
             except Exception as exc:
                 pass
 

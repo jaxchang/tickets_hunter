@@ -2559,6 +2559,24 @@ def check_kktix_got_ticket(url, config_dict):
 
     return is_kktix_got_ticket
 
+async def _kktix_is_registrations_dom_ready(tab):
+    """Whether the registrations/new app has rendered.
+
+    The verdict is computed in-page (issue #88): the check used to
+    fetch the full page HTML via get_content() on every pass just to
+    test its length and two substrings.
+    """
+    try:
+        return bool(await tab.evaluate(
+            "(function() { var html = document.documentElement.outerHTML; "
+            "return html.length > 10240"
+            " && html.indexOf('registrationsNewApp') >= 0"
+            " && html.indexOf(" + json.dumps(CONST_KKTIX_UNRENDERED_TEMPLATE_MARKER) + ") < 0; })()"
+        ))
+    except Exception:
+        return False
+
+
 async def nodriver_kktix_main(ctx):
     tab = ctx.tab
     url = ctx.url
@@ -2737,18 +2755,7 @@ async def nodriver_kktix_main(ctx):
                     debug.log(f"[KKTIX] Post-modal reload failed: {reload_exc}")
                 return None
 
-            is_dom_ready = False
-            try:
-                html_body = await tab.get_content()
-                #print("html_body:",len(html_body))
-                if html_body:
-                    if len(html_body) > 10240:
-                        if "registrationsNewApp" in html_body:
-                            if CONST_KKTIX_UNRENDERED_TEMPLATE_MARKER not in html_body:
-                                is_dom_ready = True
-            except Exception as exc:
-                #print(exc)
-                pass
+            is_dom_ready = await _kktix_is_registrations_dom_ready(tab)
 
             if not is_dom_ready:
                 _state["fail_list"] = []
