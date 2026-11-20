@@ -38,6 +38,7 @@ from nodriver_common import (
     CONST_FROM_TOP_TO_BOTTOM,
     CONST_MAXBOT_ANSWER_ONLINE_FILE,
     CONST_MAXBOT_INT28_FILE,
+    ocr_classification,
 )
 
 from platforms.kham_shared import (
@@ -235,7 +236,7 @@ async def nodriver_kham_login(tab, account, password, ocr=None, config_dict=None
             ocr_answer = None
             if img_base64:
                 try:
-                    ocr_answer = ocr.classification(img_base64)
+                    ocr_answer = await ocr_classification(ocr, img_base64)
                     ocr_done_time = time.time()
                     ocr_elapsed_time = ocr_done_time - ocr_start_time
                     debug.log(f"[KHAM LOGIN] OCR elapsed time: {ocr_elapsed_time:.3f}s")

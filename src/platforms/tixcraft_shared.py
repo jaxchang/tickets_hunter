@@ -23,6 +23,7 @@ from nodriver_common import (
     nodriver_check_checkbox_enhanced,
     nodriver_get_text_by_selector,
     write_question_to_file,
+    ocr_classification,
 )
 
 
@@ -683,7 +684,7 @@ async def nodriver_tixcraft_get_ocr_answer(tab, ocr, ocr_captcha_image_source, C
         # OCR 識別
         if not img_base64 is None:
             try:
-                ocr_answer = ocr.classification(img_base64)
+                ocr_answer = await ocr_classification(ocr, img_base64)
             except Exception as exc:
                 debug.log("[TIXCRAFT OCR] Classification error:", str(exc))
 

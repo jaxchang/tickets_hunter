@@ -261,6 +261,16 @@ def create_universal_ocr(config_dict):
         return None
 
 
+async def ocr_classification(ocr, img):
+    """Run OCR inference off the event loop (ADR 0008).
+
+    ddddocr's classification is synchronous CPU work; calling it
+    inline froze the main loop for tens to hundreds of milliseconds
+    per attempt, and captcha retry loops call it repeatedly.
+    """
+    return await asyncio.to_thread(ocr.classification, img)
+
+
 CONST_TIXCRAFT_TM_MODEL_PATH = "assets/model/tixcraft_tm"
 CONST_DEFAULT_UNIVERSAL_PATH = "assets/model/universal"
 

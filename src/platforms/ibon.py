@@ -40,6 +40,7 @@ from nodriver_common import (
     CONST_NATIVE_INPUT_SETTER_JS,
     CONST_OCR_CAPTCH_IMAGE_SOURCE_CANVAS,
     CONST_OCR_CAPTCH_IMAGE_SOURCE_NON_BROWSER,
+    ocr_classification,
 )
 
 # The /Vaildate/ cardholder page states the length in its label, set per event
@@ -114,6 +115,7 @@ _state.declare_session("alert_handler_registered", "alert handler registers once
 _state.declare_session("livemap_failed_areas", "livemap retry memory across rounds")
 _state.declare_session("livemap_last_attempt", "livemap retry memory across rounds")
 _state.declare_session("livemap_perf_id", "livemap poll bookkeeping: performance the cache belongs to")
+_state.declare_session("ocr_instance", "shared OCR instance, created lazily once per process")
 _state.declare_page("livemap_cache", _PAGE_UTK_DATE_AREA)
 _state.declare_page("livemap_fetch", _PAGE_UTK_DATE_AREA)
 _state.declare_session("last_homepage_redirect_time", "homepage redirect pacing across pages")
@@ -138,6 +140,7 @@ def _ensure_state():
         "livemap_failed_areas": {},
         "livemap_last_attempt": None,
         "livemap_perf_id": None,
+        "ocr_instance": None,
         "livemap_cache": None,
         "livemap_fetch": None,
         "played_sound_ticket": False,
@@ -2637,6 +2640,28 @@ async def nodriver_ibon_refresh_captcha(tab, config_dict):
 
     return ret
 
+
+def _ibon_get_ocr(config_dict):
+    """Return ibon's shared OCR instance, creating it on first use.
+
+    The captcha flows used to construct a fresh OCR object (and
+    reload the ONNX model) on every flow; the main program builds
+    one instance at startup and funone caches one in _state, so
+    ibon does the same. The model settings come from the captcha
+    config and are treated as fixed for the process lifetime.
+    """
+    ocr = _state.get("ocr_instance")
+    if ocr is None:
+        import ddddocr
+        ocr = create_universal_ocr(config_dict)
+        if ocr is None:
+            captcha_config = config_views.captcha_view(config_dict)
+            ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
+            ocr.set_ranges(0)
+        _state["ocr_instance"] = ocr
+    return ocr
+
+
 async def nodriver_ibon_auto_ocr(tab, config_dict, ocr, away_from_keyboard_enable, previous_answer):
     """
     ibon OCR auto recognition logic
@@ -2713,7 +2738,7 @@ async def nodriver_ibon_auto_ocr(tab, config_dict, ocr, away_from_keyboard_enabl
         try:
             # Use global OCR instance (beta=True works best for iBon - 91.3% accuracy in tests)
             # Preprocessing actually reduces accuracy (73.9% vs 91.3%)
-            ocr_answer = ocr.classification(img_base64)
+            ocr_answer = await ocr_classification(ocr, img_base64)
 
             debug.log(f"[CAPTCHA OCR] Using global OCR (beta=True), raw result: {ocr_answer}")
 
@@ -4641,11 +4666,7 @@ async def nodriver_ibon_main(ctx):
                     try:
                         ocr = None
                         if captcha_config["enable"]:
-                            import ddddocr
-                            ocr = create_universal_ocr(config_dict)
-                            if ocr is None:
-                                ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
-                                ocr.set_ranges(0)
+                            ocr = _ibon_get_ocr(config_dict)
                         is_captcha_sent = await nodriver_ibon_captcha(tab, config_dict, ocr)
                     except Exception as exc:
                         debug.log(f"[IBON] Captcha error: {exc}")
@@ -4732,11 +4753,7 @@ async def nodriver_ibon_main(ctx):
                     try:
                         ocr = None
                         if captcha_config["enable"]:
-                            import ddddocr
-                            ocr = create_universal_ocr(config_dict)
-                            if ocr is None:
-                                ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
-                                ocr.set_ranges(0)
+                            ocr = _ibon_get_ocr(config_dict)
                         is_captcha_sent = await nodriver_ibon_captcha(tab, config_dict, ocr)
                     except Exception as exc:
                         debug.log(f"[IBON] Captcha error: {exc}")
@@ -4935,11 +4952,7 @@ async def nodriver_ibon_main(ctx):
                 ocr = None
                 if captcha_config["enable"]:
                     try:
-                        import ddddocr
-                        ocr = create_universal_ocr(config_dict)
-                        if ocr is None:
-                            ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
-                            ocr.set_ranges(0)
+                        ocr = _ibon_get_ocr(config_dict)
                     except Exception as exc:
                         debug.log(f"[NEW EVENTBUY] OCR init error: {exc}")
 
@@ -5089,11 +5102,7 @@ async def nodriver_ibon_main(ctx):
                         ocr = None
                         if captcha_config["enable"]:
                             try:
-                                import ddddocr
-                                ocr = create_universal_ocr(config_dict)
-                                if ocr is None:
-                                    ocr = ddddocr.DdddOcr(show_ad=False, beta=captcha_config["beta"])
-                                    ocr.set_ranges(0)
+                                ocr = _ibon_get_ocr(config_dict)
                             except Exception as exc:
                                 debug.log(f"[IBON] OCR init error: {exc}")
 

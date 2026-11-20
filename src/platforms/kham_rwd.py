@@ -16,6 +16,7 @@ import util
 import config_views
 from nodriver_common import (
     CONST_FROM_TOP_TO_BOTTOM,
+    ocr_classification,
 )
 from platforms.kham_shared import (
     _state,
@@ -299,7 +300,7 @@ async def nodriver_utk_rwd_login(tab, config_dict, ocr, account, password):
     if ocr:
         img_bytes = await _utk_rwd_read_login_captcha(tab)
         try:
-            answer = (ocr.classification(img_bytes) or "").strip() if img_bytes else ""
+            answer = ((await ocr_classification(ocr, img_bytes)) or "").strip() if img_bytes else ""
         except Exception as exc:
             debug.log(f"[CPBL LOGIN] OCR failed: {exc}")
         if len(answer) != 4:

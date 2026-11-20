@@ -17,6 +17,7 @@ from nodriver_common import (
     PageState,
     check_and_handle_pause,
     nodriver_get_captcha_image_from_dom_snapshot,
+    ocr_classification,
 )
 
 
@@ -311,7 +312,7 @@ async def nodriver_kham_auto_ocr(tab, config_dict, ocr, away_from_keyboard_enabl
 
         if img_base64:
             try:
-                ocr_answer = ocr.classification(img_base64)
+                ocr_answer = await ocr_classification(ocr, img_base64)
             except Exception as exc:
                 debug.log("OCR classification error:", exc)
 
