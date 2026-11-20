@@ -870,6 +870,30 @@ async def nodriver_resize_window(tab, config_dict):
 
 # ===== Cloudflare Handling =====
 
+# Layer 3 markers for detect_cloudflare_challenge. The HTML list is
+# matched against the lowercased page source ("cloudflare" alone is
+# too broad -- it matches CDN/analytics scripts); the challenge-
+# platform script path is locale-independent and specific to
+# Cloudflare challenge pages. The title/text markers cover the
+# full-page interstitial (issue #102), which has no Turnstile iframe
+# for Layers 1-2 to find: its zh-TW form is titled "請稍候..." and
+# reads "驗證您是否是人類". They are matched against the rendered
+# title/text, mirroring ibon's local guard. The generic "正在驗證"
+# is deliberately NOT a marker: too broad for a detector whose false
+# positive parks the whole bot in the wait state (ADR 0011).
+CLOUDFLARE_HTML_INDICATORS = [
+    "cf-browser-verification",
+    "cf-challenge-running",
+    "cf-spinner-allow-5-secs",
+    "checking your browser",
+    "please wait while we verify",
+    "verify you are human",
+    "/cdn-cgi/challenge-platform/",
+]
+CLOUDFLARE_TITLE_MARKERS = ["請稍候"]
+CLOUDFLARE_TEXT_MARKERS = ["驗證您是否是人類"]
+
+
 async def detect_cloudflare_challenge(tab, show_debug=False):
     """
     Detect Cloudflare challenge page (Turnstile widget or full-page interstitial).
@@ -877,7 +901,7 @@ async def detect_cloudflare_challenge(tab, show_debug=False):
     Three-layer detection:
     1. CDP Target: check for iframe target with challenges.cloudflare.com (most reliable)
     2. JS DOM query: iframe or .cf-turnstile (fast but misses shadow DOM iframes)
-    3. HTML keywords: full-page CF interstitial indicators (fallback)
+    3. In-page scan: HTML indicators plus title/text interstitial markers (fallback)
 
     Returns:
         bool: True if Cloudflare challenge detected
@@ -907,29 +931,32 @@ async def detect_cloudflare_challenge(tab, show_debug=False):
         except Exception:
             pass
 
-        # Layer 3: HTML keyword detection (full-page interstitial fallback).
+        # Layer 3: in-page scan (full-page interstitial fallback).
         # The scan runs in-page and only the verdict crosses back
         # (issue #90): the full page HTML used to be fetched and
         # lowercased in Python on every call. An evaluate failure
         # propagates to the outer except below, exactly where a
-        # get_content failure landed before.
-        # Note: "cloudflare" alone is too broad (matches CDN/analytics scripts)
-        cloudflare_indicators = [
-            "cf-browser-verification",
-            "cf-challenge-running",
-            "cf-spinner-allow-5-secs",
-            "checking your browser",
-            "please wait while we verify",
-            "verify you are human",
-        ]
-
+        # get_content failure landed before. Alongside the HTML
+        # indicators, the rendered title and body text are checked
+        # for the interstitial markers (issue #102).
         detected = bool(await tab.evaluate(
-            "(function() { var html = document.documentElement.outerHTML.toLowerCase(); return "
-            + json.dumps(cloudflare_indicators)
-            + ".some(function(s) { return html.indexOf(s) >= 0; }); })()"
+            "(function() {"
+            " var html = document.documentElement.outerHTML.toLowerCase();"
+            " var indicators = " + json.dumps(CLOUDFLARE_HTML_INDICATORS) + ";"
+            " for (var i = 0; i < indicators.length; i++) {"
+            " if (html.indexOf(indicators[i]) >= 0) return true; }"
+            " var title = document.title || '';"
+            " var titleMarkers = " + json.dumps(CLOUDFLARE_TITLE_MARKERS, ensure_ascii=False) + ";"
+            " for (var j = 0; j < titleMarkers.length; j++) {"
+            " if (title.indexOf(titleMarkers[j]) >= 0) return true; }"
+            " var text = document.body ? document.body.innerText : '';"
+            " var textMarkers = " + json.dumps(CLOUDFLARE_TEXT_MARKERS, ensure_ascii=False) + ";"
+            " for (var k = 0; k < textMarkers.length; k++) {"
+            " if (text.indexOf(textMarkers[k]) >= 0) return true; }"
+            " return false; })()"
         ))
         if detected:
-            debug.log("[CF DETECT] Cloudflare keywords found in HTML")
+            debug.log("[CF DETECT] Cloudflare markers found by in-page scan")
         return detected
 
     except Exception as exc:
