@@ -106,5 +106,58 @@ class WaitStepTests(unittest.TestCase):
         self.assertTrue(nc.cf_periodic_check_due(state, nc.CF_PERIODIC_CHECK_PASSES))
 
 
+class ReappearanceTests(unittest.TestCase):
+    """Fake-success escalation (issue #104): the handler can report a
+    solve whose proof (the response field vanishing) does not stick --
+    the widget resets and the challenge is detected again on the same
+    URL. Reappearances after reported solves are counted; at the
+    limit the caller stops handling and enters the wait for a human,
+    whose clicks do pass."""
+
+    def test_detection_without_prior_solve_not_counted(self):
+        state = nc.new_cf_wait_state()
+        self.assertFalse(nc.cf_note_detected(state, URL))
+        self.assertEqual(state["reappearances"], 0)
+
+    def test_first_reappearance_below_limit(self):
+        state = nc.new_cf_wait_state()
+        nc.cf_note_solved(state, URL)
+        self.assertFalse(nc.cf_note_detected(state, URL))
+        self.assertEqual(state["reappearances"], 1)
+
+    def test_limit_reached_signals_wait(self):
+        state = nc.new_cf_wait_state()
+        nc.cf_note_solved(state, URL)
+        for _ in range(nc.CF_REAPPEARANCE_LIMIT - 1):
+            self.assertFalse(nc.cf_note_detected(state, URL))
+            # A same-URL solve between detections must not reset the count.
+            nc.cf_note_solved(state, URL)
+        self.assertTrue(nc.cf_note_detected(state, URL))
+
+    def test_detection_on_other_url_not_counted(self):
+        state = nc.new_cf_wait_state()
+        nc.cf_note_solved(state, URL)
+        self.assertFalse(nc.cf_note_detected(state, "https://example.com/other"))
+        self.assertEqual(state["reappearances"], 0)
+
+    def test_clean_detection_resets_tracking(self):
+        state = nc.new_cf_wait_state()
+        nc.cf_note_solved(state, URL)
+        nc.cf_note_detected(state, URL)
+        nc.cf_note_clean(state)
+        self.assertEqual(state["reappearances"], 0)
+        nc.cf_note_solved(state, URL)
+        self.assertFalse(nc.cf_note_detected(state, URL))
+        self.assertEqual(state["reappearances"], 1)
+
+    def test_enter_wait_clears_tracking(self):
+        state = nc.new_cf_wait_state()
+        nc.cf_note_solved(state, URL)
+        nc.cf_note_detected(state, URL)
+        nc.cf_enter_wait(state, URL, 0)
+        self.assertEqual(state["reappearances"], 0)
+        self.assertEqual(state["solved_url"], "")
+
+
 if __name__ == "__main__":
     unittest.main()

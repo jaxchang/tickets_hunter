@@ -67,7 +67,7 @@ Method 2: 文字定位                          ← 備用
     → 根據 label 位置計算 Turnstile widget 的 checkbox 座標
     → CDP click
 
-Method 3: verify_cf 模板匹配               ← 最後手段（效果差）
+Method 3: verify_cf 原生呼叫               ← 最後手段（zendriver 內建求解器，#104 起）
 ```
 
 ### 驗證邏輯

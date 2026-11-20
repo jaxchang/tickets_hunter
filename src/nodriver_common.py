@@ -18,6 +18,7 @@ from zendriver.core.config import Config
 
 import util
 import settings
+import config_views
 import chrome_downloader
 
 try:
@@ -1111,6 +1112,14 @@ async def solve_turnstile_checkbox(tab, show_debug=False):
         width = max_x - min_x
         height = max_y - min_y
 
+        # A widget that has not laid out yet reports a ~0x0 box; the
+        # click would land on blind coordinates and burn a full token
+        # wait (issue #104). Decline and let the attempt's other
+        # methods or the handler's retry find a laid-out widget.
+        if width < 10 or height < 10:
+            debug.log(f"[TURNSTILE] Widget has no layout yet ({width:.0f}x{height:.0f}), not clicking")
+            return False
+
         click_x = min_x + width * CONST_TURNSTILE_CHECKBOX_X_RATIO
         click_y = min_y + height / 2
 
@@ -1413,6 +1422,7 @@ async def handle_cloudflare_challenge(tab, config_dict, max_retry=None):
 CF_WAIT_POLL_PASSES = 40        # re-detect every ~3s while waiting
 CF_WAIT_REMINDER_PASSES = 1000  # re-log the wait every ~60s
 CF_PERIODIC_CHECK_PASSES = 200  # re-detect every ~10s even without a URL change
+CF_REAPPEARANCE_LIMIT = 2       # solved-but-back detections before waiting (issue #104)
 
 
 def new_cf_wait_state():
@@ -1423,6 +1433,8 @@ def new_cf_wait_state():
         "next_poll_pass": 0,
         "next_reminder_pass": 0,
         "last_periodic_pass": 0,
+        "solved_url": "",
+        "reappearances": 0,
     }
 
 
@@ -1441,11 +1453,60 @@ def cf_periodic_check_due(state, current_pass, excluded=False):
 
 def cf_enter_wait(state, url, current_pass):
     """Enter the wait, bound to ``url``; the first poll and the first
-    reminder are scheduled from ``current_pass``."""
+    reminder are scheduled from ``current_pass``. Entering the wait
+    ends the current solve episode, so the reappearance tracking is
+    cleared with it."""
     state["waiting"] = True
     state["url"] = url
     state["next_poll_pass"] = current_pass + CF_WAIT_POLL_PASSES
     state["next_reminder_pass"] = current_pass + CF_WAIT_REMINDER_PASSES
+    state["solved_url"] = ""
+    state["reappearances"] = 0
+
+
+def cf_note_solved(state, url):
+    """Record a reported-successful handle on ``url``. A solve on a
+    different URL starts a fresh episode; a same-URL solve keeps the
+    reappearance count (it is the count's other half)."""
+    if state["solved_url"] != url:
+        state["solved_url"] = url
+        state["reappearances"] = 0
+
+
+def cf_note_detected(state, url):
+    """Record a detection on ``url``. Returns True when the caller
+    should skip handling and enter the wait: the challenge has
+    reappeared CF_REAPPEARANCE_LIMIT times after reported solves on
+    this URL, so the handler's success signal is not sticking
+    (issue #104 -- the widget resets after automated clicks while a
+    human click passes)."""
+    if url and state["solved_url"] == url:
+        state["reappearances"] += 1
+        return state["reappearances"] >= CF_REAPPEARANCE_LIMIT
+    return False
+
+
+def cf_note_clean(state):
+    """A detection came back clean (or the URL moved on): forget the
+    solve tracking; the episode is over."""
+    state["solved_url"] = ""
+    state["reappearances"] = 0
+
+
+def announce_cf_wait(config_dict, headline):
+    """User-facing entry announcement for the Cloudflare wait: a
+    banner in the console log plus one alert sound when the ticket
+    sound is enabled. A failed sound must not kill the main loop, so
+    it is guarded here, once, for every entry path."""
+    print("[CLOUDFLARE] ======================================================")
+    print(f"[CLOUDFLARE] {headline}")
+    print("[CLOUDFLARE] Automation is PAUSED on this page until the verification clears.")
+    print("[CLOUDFLARE] ======================================================")
+    if config_views.play_sound_view(config_dict)["ticket"]:
+        try:
+            play_sound_while_ordering(config_dict)
+        except Exception:
+            pass
 
 
 def cf_exit_wait(state):
