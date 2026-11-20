@@ -1372,6 +1372,86 @@ async def handle_cloudflare_challenge(tab, config_dict, max_retry=None):
     return False
 
 
+# ===== Cloudflare wait state =====
+
+# When a Cloudflare challenge resists the automatic handler's per-URL
+# budget, the main loop waits for a human instead of dispatching
+# platform handlers onto the challenge page (issue #100; upstream
+# issue #433: operating through the challenge risks the site's rate
+# limits, and the challenge needs a human anyway). The gate state
+# machine lives here so it is testable without a browser; the main
+# loop keeps one state dict for the run and wires the actions (poll
+# detection, skip dispatch, resume). Cadences are in main-loop passes
+# (~50ms each).
+CF_WAIT_POLL_PASSES = 40        # re-detect every ~3s while waiting
+CF_WAIT_REMINDER_PASSES = 1000  # re-log the wait every ~60s
+CF_PERIODIC_CHECK_PASSES = 200  # re-detect every ~10s even without a URL change
+
+
+def new_cf_wait_state():
+    """Fresh Cloudflare gate state for the main loop."""
+    return {
+        "waiting": False,
+        "url": "",
+        "next_poll_pass": 0,
+        "next_reminder_pass": 0,
+        "last_periodic_pass": 0,
+    }
+
+
+def cf_periodic_check_due(state, current_pass, excluded=False):
+    """True when the periodic Cloudflare check should run: every
+    CF_PERIODIC_CHECK_PASSES, never while waiting (the wait polls on
+    its own cadence), and never on an excluded page (the cityline /
+    kktix login pages, whose form Turnstile belongs to the sign-in
+    flow, not the generic handler). Catches challenges that appear
+    mid-stay on an already-checked URL, which the URL-change-driven
+    check misses."""
+    return (not excluded
+            and not state["waiting"]
+            and current_pass - state["last_periodic_pass"] >= CF_PERIODIC_CHECK_PASSES)
+
+
+def cf_enter_wait(state, url, current_pass):
+    """Enter the wait, bound to ``url``; the first poll and the first
+    reminder are scheduled from ``current_pass``."""
+    state["waiting"] = True
+    state["url"] = url
+    state["next_poll_pass"] = current_pass + CF_WAIT_POLL_PASSES
+    state["next_reminder_pass"] = current_pass + CF_WAIT_REMINDER_PASSES
+
+
+def cf_exit_wait(state):
+    """Leave the wait (challenge cleared or URL moved on); the caller
+    resets the handling failure count alongside."""
+    state["waiting"] = False
+    state["url"] = ""
+
+
+def cf_wait_step(state, url, current_pass):
+    """Advance the wait state by one main-loop pass.
+
+    Returns (action, reminder_due):
+    - (None, False): not waiting.
+    - ("exit_url", False): the URL moved away from the challenge
+      page; the caller exits the wait and resumes this pass.
+    - ("poll", reminder_due): time to re-detect; reminder_due says a
+      still-waiting log line is due on this poll.
+    - ("wait", False): keep waiting without polling this pass.
+    """
+    if not state["waiting"]:
+        return None, False
+    if url != state["url"]:
+        return "exit_url", False
+    if current_pass >= state["next_poll_pass"]:
+        state["next_poll_pass"] = current_pass + CF_WAIT_POLL_PASSES
+        reminder_due = current_pass >= state["next_reminder_pass"]
+        if reminder_due:
+            state["next_reminder_pass"] = current_pass + CF_WAIT_REMINDER_PASSES
+        return "poll", reminder_due
+    return "wait", False
+
+
 # ===== Pause Mechanism =====
 
 async def check_and_handle_pause(config_dict=None):
