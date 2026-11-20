@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import pathlib
@@ -1291,6 +1292,22 @@ def get_matched_blocks_by_keyword(config_dict, auto_select_mode, keyword_string,
     return matched_blocks
 
 
+@functools.lru_cache(maxsize=8)
+def _parse_keyword_exclude_array(keyword_string):
+    """Parse a keyword_exclude string into its item list, cached.
+
+    The same exclude string is matched against every row on every
+    main-loop pass (the predicate's ~30 call sites plus the
+    date-selection core), so re-parsing it per row was pure repeated
+    work. A failed parse yields an empty list, exactly as the inline
+    parse in is_row_match_keyword did before.
+    """
+    try:
+        return json.loads("[" + keyword_string + "]")
+    except Exception:
+        return []
+
+
 def is_row_match_keyword(keyword_string, row_text):
     # clean stop word.
     row_text = format_keyword_string(row_text)
@@ -1298,11 +1315,7 @@ def is_row_match_keyword(keyword_string, row_text):
     is_match_keyword = True
     if len(keyword_string) > 0 and len(row_text) > 0:
         is_match_keyword = False
-        keyword_array = []
-        try:
-            keyword_array = json.loads("["+ keyword_string +"]")
-        except Exception as exc:
-            keyword_array = []
+        keyword_array = _parse_keyword_exclude_array(keyword_string)
         for item_list in keyword_array:
             if len(item_list) > 0:
                 if ' ' in item_list:
