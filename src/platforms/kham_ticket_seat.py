@@ -382,7 +382,7 @@ async def _analyze_seat_quality(tab, config_dict):
                    'totalSeats': 可用座位數}；JS 結果非 dict 時回傳 {}
     """
     ticket_number = config_views.ticket_number(config_dict)
-    allow_non_adjacent = config_dict["advanced"]["disable_adjacent_seat"]
+    allow_non_adjacent = config_views.disable_adjacent_seat(config_dict)
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
 
@@ -465,7 +465,7 @@ async def _find_best_seats_in_row(tab, seat_analysis, config_dict):
     Returns: dict 包含選定的座位集合
     """
     ticket_number = config_views.ticket_number(config_dict)
-    allow_non_adjacent = config_dict["advanced"]["disable_adjacent_seat"]
+    allow_non_adjacent = config_views.disable_adjacent_seat(config_dict)
     show_debug = config_dict["advanced"].get("verbose", False)
     debug = util.create_debug_logger(enabled=show_debug)
 

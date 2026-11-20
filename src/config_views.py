@@ -24,7 +24,7 @@ caching or hidden state.
 
 import random
 
-__all__ = ["date_view", "reload_interval", "area_view", "ticket_number", "captcha_view", "answer_view", "play_sound_view"]
+__all__ = ["date_view", "reload_interval", "area_view", "ticket_number", "captcha_view", "answer_view", "play_sound_view", "disable_adjacent_seat"]
 
 
 def date_view(config_dict):
@@ -174,6 +174,18 @@ def play_sound_view(config_dict):
         "ticket": play_sound.get("ticket", True),
         "order": play_sound.get("order", True),
     }
+
+
+def disable_adjacent_seat(config_dict):
+    """The seat stage's adjacent-seat switch (issue #66).
+
+    ``advanced.disable_adjacent_seat`` is a lone key with no stage
+    section of its own, so — like ``ticket_number`` — this view is
+    a scalar function. False when missing (the settings default;
+    all current readers agree on it, so there is no divergence to
+    preserve). The raw value is returned untouched.
+    """
+    return (config_dict.get("advanced") or {}).get("disable_adjacent_seat", False)
 
 
 def reload_interval(config_dict, default=0):
