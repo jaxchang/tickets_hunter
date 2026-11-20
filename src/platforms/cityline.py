@@ -767,6 +767,7 @@ async def nodriver_cityline_check_shopping_basket(tab, config_dict):
     Reference: .temp/cityline/54510/3.html - shoppingBasket page
     """
     debug = util.create_debug_logger(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
 
 
     try:
@@ -778,7 +779,7 @@ async def nodriver_cityline_check_shopping_basket(tab, config_dict):
                 print("[CITYLINE SUCCESS] Ticket added to shopping basket!")
 
                 # Play success sound and send Discord notification
-                if config_dict["advanced"]["play_sound"]["order"]:
+                if sound_config["order"]:
                     try:
                         play_sound_while_ordering(config_dict)
                     except Exception as sound_exc:
@@ -1044,6 +1045,7 @@ async def nodriver_cityline_main(ctx):
     _state.set_page(_page_id)
 
     date_config = config_views.date_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
 
     if 'msg.cityline.com' in url or 'event.cityline.com' in url:
         is_dom_ready = False
@@ -1165,7 +1167,7 @@ async def nodriver_cityline_main(ctx):
         _state["purchase_button_pressed"] = False
         # Play sound when entering performance page
         if not _state["played_sound_ticket"]:
-            if config_dict["advanced"]["play_sound"]["ticket"]:
+            if sound_config["ticket"]:
                 play_sound_while_ordering(config_dict)
         _state["played_sound_ticket"] = True
 

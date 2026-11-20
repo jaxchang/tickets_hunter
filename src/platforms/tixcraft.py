@@ -1519,6 +1519,7 @@ async def nodriver_tixcraft_main(ctx):
     _state.set_page(_page_id)
 
     date_config = config_views.date_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
 
     # Register global alert handler (remains active throughout session)
     # Only register once to prevent infinite loop
@@ -1697,7 +1698,7 @@ async def nodriver_tixcraft_main(ctx):
         _state["done_time"] = time.time()
 
         if not _state["played_sound_ticket"]:
-            if config_dict["advanced"]["play_sound"]["ticket"]:
+            if sound_config["ticket"]:
                 play_sound_while_ordering(config_dict)
         _state["played_sound_ticket"] = True
     else:
@@ -1729,7 +1730,7 @@ async def nodriver_tixcraft_main(ctx):
                 webbrowser.open_new(checkout_url)
 
         if not _state["played_sound_order"]:
-            if config_dict["advanced"]["play_sound"]["order"]:
+            if sound_config["order"]:
                 play_sound_while_ordering(config_dict)
             send_discord_notification(config_dict, "order", "TixCraft")
             send_telegram_notification(config_dict, "order", "TixCraft")

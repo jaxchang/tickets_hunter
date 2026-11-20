@@ -2272,6 +2272,7 @@ async def nodriver_ticketplus_main(ctx):
     is_user_signin = False
     date_config = config_views.date_view(config_dict)
     captcha_config = config_views.captcha_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
     if home_url == url.lower():
         if captcha_config["enable"]:
             domain_name = url.split('/')[2]
@@ -2382,7 +2383,7 @@ async def nodriver_ticketplus_main(ctx):
 
                 debug.log("[TICKETPLUS] Entered confirmation page, booking successful")
 
-                if config_dict["advanced"]["play_sound"]["order"]:
+                if sound_config["order"]:
                     play_sound_while_ordering(config_dict)
                 send_discord_notification(config_dict, "order", "TicketPlus")
                 send_telegram_notification(config_dict, "order", "TicketPlus")

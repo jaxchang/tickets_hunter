@@ -2320,6 +2320,7 @@ async def nodriver_kktix_reg_new_main(tab, config_dict, fail_list, played_sound_
         debug.log(f"[KKTIX REG] Execution count: {_state['reg_execution_count']}")
 
     area_config = config_views.area_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
     # T010: Check main switch (defensive programming)
     if not area_config["enable"]:
         debug.log("[KKTIX AREA SELECT] Main switch is disabled, skipping area selection")
@@ -2416,7 +2417,7 @@ async def nodriver_kktix_reg_new_main(tab, config_dict, fail_list, played_sound_
                     return fail_list, played_sound_ticket
 
                 if not played_sound_ticket:
-                    if config_dict["advanced"]["play_sound"]["ticket"]:
+                    if sound_config["ticket"]:
                         play_sound_while_ordering(config_dict)
                 played_sound_ticket = True
 
@@ -2512,6 +2513,7 @@ async def nodriver_kktix_main(ctx):
 
     debug = util.create_debug_logger(config_dict)
     date_config = config_views.date_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
 
     if not _state:
         _state.update({
@@ -2802,7 +2804,7 @@ async def nodriver_kktix_main(ctx):
                     _state["elapsed_time"] = bot_elapsed_time
 
             if not _state["played_sound_order"]:
-                if config_dict["advanced"]["play_sound"]["order"]:
+                if sound_config["order"]:
                     play_sound_while_ordering(config_dict)
                 send_discord_notification(config_dict, "order", "KKTIX")
                 send_telegram_notification(config_dict, "order", "KKTIX")

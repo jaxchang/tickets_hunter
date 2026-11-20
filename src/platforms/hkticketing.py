@@ -2519,6 +2519,7 @@ async def nodriver_hkticketing_main(ctx):
 
     debug = util.create_debug_logger(config_dict)
     date_config = config_views.date_view(config_dict)
+    sound_config = config_views.play_sound_view(config_dict)
 
     # Handle URL redirect (queue pages, error pages)
     is_redirected = await nodriver_hkticketing_url_redirect(tab, url, config_dict)
@@ -2632,7 +2633,7 @@ async def nodriver_hkticketing_main(ctx):
         else:
             # Play sound when entering ticket page
             if not _state.get("played_sound_ticket", False):
-                if config_dict["advanced"]["play_sound"]["ticket"]:
+                if sound_config["ticket"]:
                     play_sound_while_ordering(config_dict)
                 _state["played_sound_ticket"] = True
 
@@ -2662,7 +2663,7 @@ async def nodriver_hkticketing_main(ctx):
 
         # Play success sound (order) once
         if not _state.get("played_sound_order", False):
-            if config_dict["advanced"]["play_sound"]["order"]:
+            if sound_config["order"]:
                 play_sound_while_ordering(config_dict)
             send_discord_notification(config_dict, "order", "HKTicketing")
             send_telegram_notification(config_dict, "order", "HKTicketing")
@@ -2750,7 +2751,7 @@ async def nodriver_hkticketing_main(ctx):
                 if area_config["enable"]:
                     # Play sound when entering ticket page
                     if not _state["played_sound_ticket"]:
-                        if config_dict["advanced"]["play_sound"]["ticket"]:
+                        if sound_config["ticket"]:
                             play_sound_while_ordering(config_dict)
                         _state["played_sound_ticket"] = True
 
