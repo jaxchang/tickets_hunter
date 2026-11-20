@@ -68,7 +68,7 @@ _state.declare_session("queue_it_enter_time", "queue wait timing for the whole r
 _state.declare_session("cookie_accepted", "cookie banner is accepted once per run")
 _state.declare_session("html_lang", "page language cached for the whole run")
 _state.declare_session("reload_disabled_logged_tags", "log-once tags for the whole run")
-_state.declare_session_prefix("ticket_assigned_", "per-ticket assignment markers keyed by URL and ticket count; kept for the run so a set count is not re-entered")
+_state.declare_session_prefix("ticket_assigned_", "per-ticket assignment markers keyed by URL and ticket count; kept for the run so a set count is not re-entered; capped at 128 entries, oldest evicted first (issue #92)")
 
 
 # Keywords that identify serial-number / membership-code / promo-code style

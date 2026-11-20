@@ -1178,6 +1178,7 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
     # Record state after successful setting
     if is_ticket_number_assigned:
         _state[ticket_state_key] = True
+        _cap_ticket_assigned_markers()
         debug.log("Ticket number set successfully, starting OCR captcha processing")
         await nodriver_tixcraft_ticket_main_ocr(tab, config_dict, ocr, Captcha_Browser, domain_name)
     else:
@@ -1218,6 +1219,25 @@ def _forget_ticket_assigned(current_url):
     keeps for this URL, so the next pass assigns the count again."""
     prefix = f"ticket_assigned_{current_url}_"
     for key in [k for k in _state if k.startswith(prefix)]:
+        del _state[key]
+
+
+# The ticket_assigned_* markers are kept for the run (see the
+# declaration in tixcraft_shared), but the key embeds the full URL,
+# so a long run across many events would grow the family without
+# bound. Cap it, evicting the oldest markers first: an evicted URL
+# degrades to the first-visit path and simply re-runs the idempotent
+# ticket-count assignment (issue #92).
+CONST_TIXCRAFT_TICKET_ASSIGNED_MAX = 128
+
+
+def _cap_ticket_assigned_markers():
+    """Evict the oldest ticket_assigned_* markers beyond the cap."""
+    keys = [k for k in _state if k.startswith("ticket_assigned_")]
+    excess = len(keys) - CONST_TIXCRAFT_TICKET_ASSIGNED_MAX
+    if excess <= 0:
+        return
+    for key in keys[:excess]:
         del _state[key]
 
 
