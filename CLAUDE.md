@@ -183,6 +183,14 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common / date_selection / confi
   要檢查它的回傳值，填值失敗就不要送出。
 - **`querySelector('A, B')` 回傳文件順序中第一個符合的元素**，不是「優先 A、其次 B」。
   需要優先順序就分兩次查詢。
+- **CDP dialog handler 的註冊旗標與連線生命週期不一致。** zendriver 的 handler 活在 tab 的
+  連線（connection）上、以 `add_handler` 只增不去重；各平台的「只註冊一次」守衛卻放在模組
+  `_state`（如 `alert_handler_registered`）。tab 若在同一程序內被重建，新連線沒有 handler、
+  舊旗標卻擋住重註冊，全域 alert 處理會默默失效。per-call 的 handler（如 captcha 流程）
+  必須在 finally 以 targeted 形式 `remove_handlers(event_type, handler)` 只移除自己：
+  事件全刪形式會連全域 handler 一起刪掉（ibon keyin 曾因此讓全域 handler 在第一次送出後
+  失效，#72）；從不移除則每個 episode 累積一個 closure（ticketmaster captcha 曾如此，#72）。
+  全域旗標與連線的根本解法（旗標改綁連線身分）尚未做，待瀏覽器/tab 回收機制一併處理。
 - **設定鍵可能被多個平台共用**，例如 `contact.credit_card_prefix` 同時被 ibon、TicketPlus、寬宏讀取。
   改動欄位長度、格式或語意之前，先搜尋所有讀取它的平台。
 - **自動辨識沒把握時就不要動作。** 無法確認彈窗或欄位的身分時，交還使用者手動處理，
