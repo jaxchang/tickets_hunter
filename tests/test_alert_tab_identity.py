@@ -71,13 +71,13 @@ class AlertHandlerIdentityTest(unittest.IsolatedAsyncioTestCase):
 class StaleTabSweepTest(unittest.IsolatedAsyncioTestCase):
     async def test_stale_tab_closed_working_tab_exempt(self):
         working, stale = FakeTab(), FakeTab()
-        first_seen = {working: 0, stale: 0}
+        first_seen = {id(working): 0, id(stale): 0}
         closed = await nodriver_common.close_stale_tabs(
             [working, stale], working, first_seen, current_pass=1000)
         self.assertEqual(closed, [stale])
         self.assertEqual(stale.close_calls, 1)
         self.assertEqual(working.close_calls, 0)
-        self.assertNotIn(working, first_seen)
+        self.assertNotIn(id(working), first_seen)
 
     async def test_young_tab_kept_and_recorded(self):
         working, young = FakeTab(), FakeTab()
@@ -85,7 +85,7 @@ class StaleTabSweepTest(unittest.IsolatedAsyncioTestCase):
         closed = await nodriver_common.close_stale_tabs(
             [working, young], working, first_seen, current_pass=10)
         self.assertEqual(closed, [])
-        self.assertEqual(first_seen[young], 10)
+        self.assertEqual(first_seen[id(young)], 10)
 
         closed = await nodriver_common.close_stale_tabs(
             [working, young], working, first_seen, current_pass=10 + 600)
@@ -94,18 +94,18 @@ class StaleTabSweepTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_boundary_age_closes_only_past_max(self):
         working, tab = FakeTab(), FakeTab()
-        first_seen = {tab: 100}
+        first_seen = {id(tab): 100}
         closed = await nodriver_common.close_stale_tabs(
             [working, tab], working, first_seen, current_pass=100 + 601)
         self.assertEqual(closed, [tab])
 
     async def test_disappeared_tab_forgotten(self):
         working, ghost = FakeTab(), FakeTab()
-        first_seen = {ghost: 0}
+        first_seen = {id(ghost): 0}
         closed = await nodriver_common.close_stale_tabs(
             [working], working, first_seen, current_pass=50)
         self.assertEqual(closed, [])
-        self.assertNotIn(ghost, first_seen)
+        self.assertNotIn(id(ghost), first_seen)
 
 
 if __name__ == "__main__":
