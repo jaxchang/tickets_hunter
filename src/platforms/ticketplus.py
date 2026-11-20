@@ -204,6 +204,12 @@ _TICKETPLUS_SESSION_CONTAINERS_JS = '''
 '''
 
 
+# Known honeypot session ids: the TicketPlus API returns fake session
+# data to detected bots. A session with one of these ids must never be
+# navigated to or clicked (ADR 0007).
+KNOWN_FAKE_SESSION_IDS = ['c18900a1d5f295218fe60b982d7ece96']
+
+
 def _ticketplus_filter_excluded(config_dict, items, text_of):
     """Drop items whose text matches keyword_exclude.
 
@@ -598,6 +604,10 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
         debug.log("date date-time-position is None or empty")
 
     is_date_clicked = False
+    # Set when the Vue path finds only honeypot sessions: the whole pass
+    # is aborted so the DOM path cannot click what the Vue path refused
+    # to navigate to (ADR 0007).
+    vue_fake_blocked = False
     if is_vue_ready and formated_area_list and len(formated_area_list) > 0:
         try:
             original_keyword = date_config["keyword"]
@@ -637,41 +647,63 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
                 except Exception:
                     kw_array = [original_keyword.strip('"').strip("'").strip()]
 
+                # Collect every match in session order, then let the
+                # configured mode pick from the matched set (the DOM
+                # path and the other platforms pick the same way).
+                matched_sessions = []
                 for s in sessions:
                     session_text = (s.get('date', '') + ' ' + s.get('name', '')).lower()
                     for kw_item in kw_array:
                         sub_kws = [k.strip() for k in kw_item.split(' ') if k.strip()]
                         if all(k.lower() in session_text for k in sub_kws):
-                            target_session = s
+                            matched_sessions.append(s)
                             break
-                    if target_session:
-                        break
 
-                if not target_session and date_auto_fallback and sessions:
-                    debug.log("[TicketPlus DATE FALLBACK] Vue data fallback: using first loaded session")
-                    target_session = sessions[0]
+                # Honeypot sessions are filtered out of the matched set
+                # before picking; if nothing real remains, abort the
+                # pass instead of letting the DOM path click them.
+                real_matched = [
+                    s for s in matched_sessions
+                    if s.get('sessionId') not in KNOWN_FAKE_SESSION_IDS
+                ]
+                if matched_sessions and not real_matched:
+                    vue_fake_blocked = True
+                    debug.log(f"[TicketPlus DATE] WARNING: API returned known fake session data (anti-bot honeypot detected). sessionIds={[s.get('sessionId') for s in matched_sessions]}")
+                    debug.log("[TicketPlus DATE] Bot may be flagged by TicketPlus. Skipping date selection this pass.")
+                elif real_matched:
+                    target_session = util.get_target_item_from_matched_list(
+                        real_matched, auto_select_mode)
+
+                if not target_session and not vue_fake_blocked and date_auto_fallback and sessions:
+                    # The fallback also skips honeypot sessions; if every
+                    # loaded session is fake, abort the pass as above.
+                    non_fake_sessions = [
+                        s for s in sessions
+                        if s.get('sessionId') not in KNOWN_FAKE_SESSION_IDS
+                    ]
+                    if non_fake_sessions:
+                        debug.log("[TicketPlus DATE FALLBACK] Vue data fallback: using first loaded session")
+                        target_session = non_fake_sessions[0]
+                    else:
+                        vue_fake_blocked = True
+                        debug.log(f"[TicketPlus DATE] WARNING: API returned known fake session data (anti-bot honeypot detected). sessionIds={[s.get('sessionId') for s in sessions]}")
+                        debug.log("[TicketPlus DATE] Bot may be flagged by TicketPlus. Skipping date selection this pass.")
 
                 if target_session:
                     session_id = target_session['sessionId']
-                    # Known honeypot sessionId: TicketPlus API returns fake data to detected bots
-                    KNOWN_FAKE_SESSION_IDS = ['c18900a1d5f295218fe60b982d7ece96']
-                    if session_id in KNOWN_FAKE_SESSION_IDS:
-                        debug.log(f"[TicketPlus DATE] WARNING: API returned known fake session data (anti-bot honeypot detected). sessionId={session_id}")
-                        debug.log("[TicketPlus DATE] Bot may be flagged by TicketPlus. Skipping navigation to avoid invalid order page.")
-                    else:
-                        current_url = tab.url if hasattr(tab, 'url') else ''
-                        if not current_url:
-                            current_url = await tab.evaluate('window.location.href')
-                        event_id = current_url.split('/activity/')[-1].split('/')[0].split('?')[0]
-                        order_url = 'https://ticketplus.com.tw/order/' + event_id + '/' + session_id
-                        debug.log(f"[TicketPlus DATE] Vue data: date={target_session.get('date', '')} sessionId={session_id}")
-                        await tab.get(order_url)
-                        is_date_clicked = True
+                    current_url = tab.url if hasattr(tab, 'url') else ''
+                    if not current_url:
+                        current_url = await tab.evaluate('window.location.href')
+                    event_id = current_url.split('/activity/')[-1].split('/')[0].split('?')[0]
+                    order_url = 'https://ticketplus.com.tw/order/' + event_id + '/' + session_id
+                    debug.log(f"[TicketPlus DATE] Vue data: date={target_session.get('date', '')} sessionId={session_id}")
+                    await tab.get(order_url)
+                    is_date_clicked = True
 
         except Exception as exc:
             debug.log(f"[TicketPlus DATE] Vue data navigation failed: {exc}")
 
-    if not is_date_clicked and is_vue_ready and formated_area_list and len(formated_area_list) > 0:
+    if not is_date_clicked and not vue_fake_blocked and is_vue_ready and formated_area_list and len(formated_area_list) > 0:
         try:
             original_keyword = date_config["keyword"]
 

@@ -15,11 +15,12 @@ candidate computation (``allowed_indexes``), using the fake-tab seam:
   result stands in for the JS-side matching (not unit-tested, as with
   other JS-heavy handlers).
 
-Two known defects are deliberately NOT pinned here (ADR 0007): the
-Vue path ignores ``date_auto_select.mode``, and a honeypot session
-blocked in the Vue path can still be reached by the DOM path. The
-honeypot test below pins only the Vue-level guarantee (never navigate
-to a fake session id), which holds before and after the fix.
+The characterization tests above were written against the pre-fix
+handler (issue #68) and pin only non-defect behaviour. The two defects
+classified in ADR 0007 -- the Vue path ignoring
+``date_auto_select.mode`` and the honeypot guard being bypassable via
+the DOM path -- were fixed in issue #70; ``TicketPlusVueFixTest``
+below pins the fixed behaviour.
 """
 
 import os
@@ -228,6 +229,98 @@ class TicketPlusDomPathTest(unittest.IsolatedAsyncioTestCase):
         scripts = click_scripts(tab)
         self.assertEqual(len(scripts), 1)
         self.assertIn("allowedIndexes = [0, 2]", scripts[0])
+
+
+class TicketPlusVueFixTest(unittest.IsolatedAsyncioTestCase):
+    """The ADR 0007 defect fixes (issue #70)."""
+
+    def setUp(self):
+        ticketplus._state.clear()
+
+    def three_match_tab(self):
+        return make_tab(vue={"ready": True, "sessions": [
+            session("s1", "2026/01/02", "午場"),
+            session("s2", "2026/01/03", "晚場"),
+            session("s3", "2026/01/04", "晚場"),
+        ]})
+
+    async def test_mode_bottom_picks_last_match(self):
+        tab = self.three_match_tab()
+        result = await ticketplus.nodriver_ticketplus_date_auto_select(
+            tab, make_config(keyword='"晚場"', mode="from bottom to top"))
+        self.assertTrue(result)
+        self.assertEqual(tab.get_calls, [ORDER_URL + "s3"])
+
+    async def test_mode_center_picks_middle_match(self):
+        tab = make_tab(vue={"ready": True, "sessions": [
+            session("s1", "2026/01/02", "晚場"),
+            session("s2", "2026/01/03", "晚場"),
+            session("s3", "2026/01/04", "晚場"),
+        ]})
+        result = await ticketplus.nodriver_ticketplus_date_auto_select(
+            tab, make_config(keyword='"晚場"', mode="center"))
+        self.assertTrue(result)
+        self.assertEqual(tab.get_calls, [ORDER_URL + "s2"])
+
+    async def test_mode_random_picks_one_of_the_matches(self):
+        tab = self.three_match_tab()
+        result = await ticketplus.nodriver_ticketplus_date_auto_select(
+            tab, make_config(keyword='"晚場"', mode="random"))
+        self.assertTrue(result)
+        self.assertEqual(len(tab.get_calls), 1)
+        self.assertIn(tab.get_calls[0],
+                      [ORDER_URL + "s2", ORDER_URL + "s3"])
+
+    async def test_honeypot_filtered_from_matched_set(self):
+        # Both sessions match the keyword; the fake one comes first
+        # but is filtered out before picking, so the real one wins.
+        tab = make_tab(vue={"ready": True, "sessions": [
+            session(FAKE_SESSION_ID, "2026/01/02", "晚場"),
+            session("s2", "2026/01/03", "晚場"),
+        ]})
+        result = await ticketplus.nodriver_ticketplus_date_auto_select(
+            tab, make_config(keyword='"晚場"'))
+        self.assertTrue(result)
+        self.assertEqual(tab.get_calls, [ORDER_URL + "s2"])
+
+    async def test_all_matches_fake_aborts_and_blocks_dom_path(self):
+        tab = make_tab(
+            vue={"ready": True, "sessions": [
+                session(FAKE_SESSION_ID, "2026/01/02", "午場"),
+            ]},
+            collected=[{"index": 0, "text": "2026/01/02 午場"}],
+            click={"success": True, "action": "button_clicked", "targetText": "x"},
+        )
+        result = await ticketplus.nodriver_ticketplus_date_auto_select(
+            tab, make_config(keyword='"午場"'))
+        self.assertFalse(result)
+        self.assertEqual(tab.get_calls, [])
+        # The DOM path never ran: no click script was evaluated.
+        self.assertEqual(click_scripts(tab), [])
+
+    async def test_fallback_skips_fake_first_session(self):
+        tab = make_tab(vue={"ready": True, "sessions": [
+            session(FAKE_SESSION_ID, "2026/01/02", "午場"),
+            session("s2", "2026/01/03", "晚場"),
+        ]})
+        result = await ticketplus.nodriver_ticketplus_date_auto_select(
+            tab, make_config(keyword="", fallback=True))
+        self.assertTrue(result)
+        self.assertEqual(tab.get_calls, [ORDER_URL + "s2"])
+
+    async def test_all_sessions_fake_fallback_aborts_and_blocks_dom(self):
+        tab = make_tab(
+            vue={"ready": True, "sessions": [
+                session(FAKE_SESSION_ID, "2026/01/02", "午場"),
+            ]},
+            collected=[{"index": 0, "text": "2026/01/02 午場"}],
+            click={"success": True, "action": "button_clicked", "targetText": "x"},
+        )
+        result = await ticketplus.nodriver_ticketplus_date_auto_select(
+            tab, make_config(keyword="", fallback=True))
+        self.assertFalse(result)
+        self.assertEqual(tab.get_calls, [])
+        self.assertEqual(click_scripts(tab), [])
 
 
 if __name__ == "__main__":
