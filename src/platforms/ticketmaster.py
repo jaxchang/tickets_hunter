@@ -902,11 +902,12 @@ async def nodriver_ticketmaster_captcha(tab, config_dict, ocr, captcha_browser):
         alert_state["message"] = event.message
         debug.log(f"[TICKETMASTER CAPTCHA] Alert event: '{event.message[:60]}'")
 
-        # This handler is registered on the check-captcha page but never removed
-        # (zendriver's tab.remove_handlers drops EVERY handler of the type,
-        # including the global one), so it stays alive for the rest of the
-        # session. Without the guards below it answered OK to the checkout
-        # page's "cancel your order?" confirm and cancelled the order (#378).
+        # Registered for this captcha call only; the caller removes it
+        # (targeted form) in a finally. The guards below stay necessary
+        # because, while registered, this handler can also observe
+        # dialogs from other pages the tab navigates to -- without them
+        # it once answered OK to the checkout page's "cancel your
+        # order?" confirm and cancelled the order (#378).
         if os.path.exists(util.get_instance_state_path(CONST_MAXBOT_INT28_FILE)):
             return
         # tab.target.url is the CDP-cached value; js_dumps would hang here
@@ -925,6 +926,24 @@ async def nodriver_ticketmaster_captcha(tab, config_dict, ocr, captcha_browser):
 
     # Register handler for this captcha session
     tab.add_handler(cdp.page.JavascriptDialogOpening, on_captcha_alert)
+
+    try:
+        return await _ticketmaster_captcha_run(
+            tab, config_dict, ocr, captcha_browser, alert_state)
+    finally:
+        # Remove only this call's handler (targeted form): the
+        # event-wide form would also delete the platform's global
+        # alert handler, and never removing it accumulated one
+        # closure per captcha episode for the whole session.
+        try:
+            tab.remove_handlers(cdp.page.JavascriptDialogOpening, on_captcha_alert)
+        except Exception:
+            pass
+
+
+async def _ticketmaster_captcha_run(tab, config_dict, ocr, captcha_browser, alert_state):
+    """Body of nodriver_ticketmaster_captcha, run under its handler scope."""
+    debug = util.create_debug_logger(config_dict)
 
     # Handle captcha
     captcha_config = config_views.captcha_view(config_dict)

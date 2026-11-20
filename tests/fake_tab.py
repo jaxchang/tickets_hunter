@@ -35,6 +35,8 @@ class FakeElement:
         self._children = {}
         self._children_all = {}
         self.click_calls = 0
+        self.apply_calls = []
+        self.send_keys_calls = []
 
     def register_child(self, selector, element=None):
         """Make ``query_selector(selector)`` return ``element``.
@@ -68,6 +70,15 @@ class FakeElement:
     async def click(self):
         self.click_calls += 1
 
+    async def apply(self, script, *args):
+        # Records the applied function; canned elements have no live
+        # DOM state to read back, so this returns None.
+        self.apply_calls.append(script)
+        return None
+
+    async def send_keys(self, text):
+        self.send_keys_calls.append(text)
+
 
 class FakeBrowser:
     """The tab's browser handle: just the tab list handlers inspect."""
@@ -77,7 +88,14 @@ class FakeBrowser:
 
 
 class FakeTab:
-    """A canned browser tab: selector/evaluate registries plus counters."""
+    """A canned browser tab: selector/evaluate registries plus counters.
+
+    Also keeps a CDP handler registry mirroring zendriver's
+    Connection semantics (add appends without dedup; remove has the
+    same three forms), so handler-lifecycle tests can assert what is
+    still registered. Handlers are recorded, never invoked -- firing
+    CDP events would be simulating, not stubbing.
+    """
 
     def __init__(self, url="about:blank"):
         self.url = url
@@ -89,6 +107,7 @@ class FakeTab:
         self._elements = {}
         self._elements_all = {}
         self._evaluate_responses = []
+        self._handlers = {}
 
     def register_element(self, selector, element=None):
         """Make ``query_selector(selector)`` return ``element``.
@@ -126,6 +145,25 @@ class FakeTab:
             if match in script:
                 return result
         return []
+
+    def add_handler(self, event_type, handler):
+        """Mirror zendriver Connection.add_handler: append, no dedup."""
+        self._handlers.setdefault(event_type, []).append(handler)
+
+    def remove_handlers(self, event_type=None, handler=None):
+        """Mirror zendriver Connection.remove_handlers' three forms."""
+        if event_type is None:
+            self._handlers.clear()
+        elif handler is None:
+            self._handlers.pop(event_type, None)
+        else:
+            handlers = self._handlers.get(event_type, [])
+            if handler in handlers:
+                handlers.remove(handler)
+
+    def handlers_for(self, event_type):
+        """The handlers currently registered for ``event_type``."""
+        return list(self._handlers.get(event_type, []))
 
     async def get(self, url):
         self.get_calls.append(url)

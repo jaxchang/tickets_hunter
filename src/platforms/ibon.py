@@ -2449,6 +2449,7 @@ async def nodriver_ibon_keyin_captcha_code(tab, answer="", auto_submit=False, co
             return is_verifyCode_editing, is_form_submitted
 
         # Fill in answer
+        submit_dialog_handler = None
         try:
             await form_verifyCode.click()
 
@@ -2498,6 +2499,7 @@ async def nodriver_ibon_keyin_captcha_code(tab, answer="", auto_submit=False, co
                     # Register alert handler
                     try:
                         tab.add_handler(cdp.page.JavascriptDialogOpening, handle_submit_dialog)
+                        submit_dialog_handler = handle_submit_dialog
                         debug.log(f"[CAPTCHA INPUT] Alert handler registered before submit")
                     except Exception as handler_exc:
                         debug.log(f"[CAPTCHA INPUT] Failed to register alert handler: {handler_exc}")
@@ -2575,16 +2577,20 @@ async def nodriver_ibon_keyin_captcha_code(tab, answer="", auto_submit=False, co
                     else:
                         debug.log("[CAPTCHA INPUT] Submit button not found or disabled")
 
-                    # Remove alert handler
-                    try:
-                        tab.remove_handlers(cdp.page.JavascriptDialogOpening)
-                    except:
-                        pass
                 else:
                     debug.log("[CAPTCHA INPUT] Ticket number not selected, skip submit")
 
         except Exception as exc:
             debug.log(f"[CAPTCHA INPUT ERROR] {exc}")
+        finally:
+            # Remove only this call's submit handler (targeted form):
+            # the event-wide form also deleted the platform's global
+            # alert handler while its registered flag stayed set.
+            if submit_dialog_handler is not None:
+                try:
+                    tab.remove_handlers(cdp.page.JavascriptDialogOpening, submit_dialog_handler)
+                except Exception:
+                    pass
 
     except Exception as exc:
         if debug.enabled:
