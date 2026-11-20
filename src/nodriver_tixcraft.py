@@ -838,6 +838,7 @@ async def main(args):
     last_url = ""
     cloudflare_checked = False
     cloudflare_fail_count = 0
+    cf_state = new_cf_wait_state()  # Cloudflare wait state (issue #100)
     last_paused_state = False  # Track pause state changes
 
     ocr = None
@@ -973,8 +974,12 @@ async def main(args):
             await asyncio.sleep(0.1)
             continue
 
-        # Cloudflare challenge detection (only on URL change to avoid performance hit)
-        # After 3 consecutive failures on same URL, stop retrying to avoid infinite loop
+        # Cloudflare challenge detection. Checks run on URL change, plus
+        # periodically (CF_PERIODIC_CHECK_PASSES) so a challenge that
+        # appears mid-stay on an already-checked URL is still caught.
+        # After 3 consecutive handling failures on the same URL, the loop
+        # enters the wait state below instead of dispatching onto the
+        # challenge page (issue #100).
         # Skip the Cityline and KKTIX login pages: the Turnstile there is part of
         # the login form, not a page-wide block (covers cityline.com, the venue
         # cityline.com.hk pages, and kktix.com / kktix.cc sign-in).
@@ -985,9 +990,38 @@ async def main(args):
         # filling the credentials and submitting them. Ownership of a login-form
         # Turnstile therefore belongs to nodriver_kktix_signin and to
         # nodriver_cityline_login, which solve it as part of their own sequence.
-        if is_cityline_login_page(url) or is_kktix_login_page(url):
+        login_excluded = is_cityline_login_page(url) or is_kktix_login_page(url)
+        if login_excluded:
             cloudflare_checked = True
-        if not cloudflare_checked and cloudflare_fail_count < 3:
+
+        # Cloudflare wait state (issue #100): the challenge resisted
+        # automatic handling, so wait for a human to clear it. Dispatch
+        # is skipped wholesale; the wait is per-pass, so the quit and
+        # pause checks above stay live. Polls re-run detection only.
+        if cf_state["waiting"]:
+            action, reminder_due = cf_wait_step(cf_state, url, pass_count)
+            if action == "exit_url":
+                cf_exit_wait(cf_state)
+                cloudflare_fail_count = 0
+                cloudflare_checked = login_excluded
+                print("[CLOUDFLARE] Page changed, resuming automation")
+            elif action == "poll":
+                if not await detect_cloudflare_challenge(tab, show_debug=config_dict.get("advanced", {}).get("verbose", False)):
+                    cf_exit_wait(cf_state)
+                    cloudflare_fail_count = 0
+                    cloudflare_checked = login_excluded
+                    print("[CLOUDFLARE] Verification cleared, resuming automation")
+                else:
+                    if reminder_due:
+                        print("[CLOUDFLARE] Still waiting for human verification to be completed...")
+                    continue
+            else:  # "wait": no poll due this pass
+                continue
+
+        periodic_due = cf_periodic_check_due(cf_state, pass_count, excluded=login_excluded)
+        if (not cloudflare_checked or periodic_due) and cloudflare_fail_count < 3:
+            if periodic_due:
+                cf_state["last_periodic_pass"] = pass_count
             is_cloudflare = await detect_cloudflare_challenge(tab, show_debug=config_dict.get("advanced", {}).get("verbose", False))
             cloudflare_checked = True
             if is_cloudflare:
@@ -1001,7 +1035,17 @@ async def main(args):
                     cloudflare_fail_count += 1
                     cloudflare_checked = False  # Allow retry on next loop iteration
                     if cloudflare_fail_count >= 3:
-                        print("[CLOUDFLARE] Max failures reached, waiting for URL change to retry")
+                        cf_enter_wait(cf_state, url, pass_count)
+                        print("[CLOUDFLARE] ======================================================")
+                        print("[CLOUDFLARE] Human verification needs manual completion.")
+                        print("[CLOUDFLARE] Automation is PAUSED on this page until the verification clears.")
+                        print("[CLOUDFLARE] ======================================================")
+                        if config_views.play_sound_view(config_dict)["ticket"]:
+                            try:
+                                play_sound_while_ordering(config_dict)
+                            except Exception:
+                                pass  # A failed alert sound must not kill the loop
+                        continue  # The wait starts now: no dispatch this pass
 
         # Platform dispatch (issue #34, ADR 0005): run every registry
         # entry whose matcher accepts this URL, in registry order. A
