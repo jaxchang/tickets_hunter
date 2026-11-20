@@ -22,6 +22,7 @@ from nodriver_common import (
     play_sound_while_ordering,
     send_discord_notification,
     send_telegram_notification,
+    ocr_classification,
 )
 
 
@@ -1414,7 +1415,7 @@ async def nodriver_funone_ocr_captcha(tab, config_dict, base64_data):
             ocr_obj.set_ranges(5)
             _state["ocr_instance"] = ocr_obj
         ocr_instance = _state["ocr_instance"]
-        ocr_answer = ocr_instance.classification(img_bytes)
+        ocr_answer = await ocr_classification(ocr_instance, img_bytes)
 
         if ocr_answer:
             # Filter to uppercase A-Z and digits 0-9 only
