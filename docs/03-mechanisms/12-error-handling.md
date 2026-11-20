@@ -164,7 +164,7 @@ TixCraft 售完偵測使用非阻塞式冷卻機制：
 - `captcha_alert_detected`：驗證碼錯誤旗標（TixCraft）
 - `sold_out_cooldown_until`：售完冷卻時間戳（TixCraft）
 - `queue_it_enter_time`：Queue-IT 進入時間（iBon）
-- `alert_handler_registered`：Alert 處理器註冊旗標（iBon）
+- `alert_handler_tab`：持有 Alert 處理器註冊的分頁物件（iBon；註冊綁分頁連線，換頁重新註冊，#94）
 
 各平台的狀態字典為模組層級 `_state` dict（位於各自的 `src/platforms/*.py`）。
 

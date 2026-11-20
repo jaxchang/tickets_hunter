@@ -54,7 +54,7 @@ _state.declare_session("is_popup_checkout", "checkout popup flag for the order f
 _state.declare_session("area_retry_count", "reset by the area-page exit branch")
 _state.declare_session("played_sound_ticket", "sound plays once per purchase flow")
 _state.declare_session("played_sound_order", "sound plays once per purchase flow")
-_state.declare_session("alert_handler_registered", "alert handler registers once per process")
+_state.declare_session("alert_handler_tab", "the tab object holding the global alert handler; the handler lives on that tab's CDP connection, so a different working tab re-registers (issue #94)")
 _state.declare_session("captcha_alert_detected", "captcha retry guard shared by alert handler and ticket page")
 _state.declare_session("captcha_submit_until", "captcha retry guard shared by alert handler and ticket page")
 _state.declare_session("ocr_completed_url", "URL-keyed OCR dedup across pages")

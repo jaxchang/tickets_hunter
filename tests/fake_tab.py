@@ -107,6 +107,7 @@ class FakeTab:
         self.sleep_calls = []
         self.evaluate_calls = []
         self.get_content_calls = 0
+        self.close_calls = 0
         self._content = ""
         self._elements = {}
         self._elements_all = {}
@@ -188,6 +189,9 @@ class FakeTab:
     async def get_content(self):
         self.get_content_calls += 1
         return self._content
+
+    async def close(self):
+        self.close_calls += 1
 
     async def get(self, url):
         self.get_calls.append(url)

@@ -194,7 +194,10 @@ nodriver_tixcraft  ->  platforms/*  ->  nodriver_common / date_selection / confi
   必須在 finally 以 targeted 形式 `remove_handlers(event_type, handler)` 只移除自己：
   事件全刪形式會連全域 handler 一起刪掉（ibon keyin 曾因此讓全域 handler 在第一次送出後
   失效，#72）；從不移除則每個 episode 累積一個 closure（ticketmaster captcha 曾如此，#72）。
-  全域旗標與連線的根本解法（旗標改綁連線身分）尚未做，待瀏覽器/tab 回收機制一併處理。
+  全域 handler 的註冊已改綁分頁身分（#94，ADR 0009）：三平台各有
+  `register_*_alert_handler(tab, config_dict)`，以 `_state["alert_handler_tab"]`
+  記住持有註冊的分頁物件，分頁不同即重新註冊；不得再引入程序級布林註冊旗標。
+  主迴圈另有高齡非工作分頁清掃（`close_stale_tabs`，約 600 pass），被棄置的分頁不會長留。
 - **設定鍵可能被多個平台共用**，例如 `contact.credit_card_prefix` 同時被 ibon、TicketPlus、寬宏讀取。
   改動欄位長度、格式或語意之前，先搜尋所有讀取它的平台。
 - **自動辨識沒把握時就不要動作。** 無法確認彈窗或欄位的身分時，交還使用者手動處理，

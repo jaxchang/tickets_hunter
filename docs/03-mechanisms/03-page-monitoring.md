@@ -115,13 +115,13 @@ while True:
 | `fail_list` | 已嘗試失敗的選項（避免重複選取） |
 | `start_time` / `done_time` | 計時用 |
 | `area_retry_count` | 區域選擇重試次數（超過 900 次冷卻） |
-| `alert_handler_registered` | 避免重複註冊 alert handler |
+| `alert_handler_tab` | 持有全域 alert handler 註冊的分頁物件（註冊綁分頁連線，換頁重新註冊，#94） |
 | `sold_out_cooldown_until` | 售完冷卻時間戳 |
 | `captcha_alert_detected` | 驗證碼錯誤標記 |
 
 ### 全域 Alert Handler
 
-各平台在 `_main` 首次呼叫時註冊 CDP `JavascriptDialogOpening` handler，自動處理彈出視窗：
+各平台的主流程透過 `register_*_alert_handler` 在目前工作分頁的連線上註冊 CDP `JavascriptDialogOpening` handler（註冊綁分頁身分，換頁重新註冊，#94），自動處理彈出視窗：
 
 - **售完提示**：自動關閉並進入冷卻延遲
 - **驗證碼錯誤**：標記 `captcha_alert_detected` 供重試邏輯使用
