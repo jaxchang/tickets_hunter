@@ -106,6 +106,7 @@ class FakeTab:
         self.evaluate_calls = []
         self._elements = {}
         self._elements_all = {}
+        self._elements_all_queue = {}
         self._evaluate_responses = []
         self._handlers = {}
 
@@ -136,7 +137,18 @@ class FakeTab:
     async def query_selector(self, selector):
         return self._elements.get(selector)
 
+    def queue_elements_all(self, selector, results):
+        """Queue successive results for query_selector_all: each call
+        returns the next list; the last one repeats. For polling
+        scenarios where rows only appear after a few checks."""
+        self._elements_all_queue[selector] = list(results)
+
     async def query_selector_all(self, selector):
+        queue = self._elements_all_queue.get(selector)
+        if queue:
+            if len(queue) > 1:
+                return queue.pop(0)
+            return list(queue[0])
         return list(self._elements_all.get(selector, []))
 
     async def evaluate(self, script, await_promise=False):
