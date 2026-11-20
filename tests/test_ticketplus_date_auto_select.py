@@ -179,7 +179,12 @@ class TicketPlusFrontSegmentTest(unittest.IsolatedAsyncioTestCase):
         result = await ticketplus.nodriver_ticketplus_date_auto_select(
             tab, make_config(keyword='"晚場"'))
         self.assertFalse(result)
-        self.assertEqual(tab.evaluate_calls, [])
+        # Neither selection path ran. (Since issue #86 the extraction
+        # itself may evaluate -- the batch row read -- so this asserts
+        # on the selection paths' scripts, not on evaluate_calls == [].)
+        selection_calls = [s for s in tab.evaluate_calls
+                           if ".eventClass" in s or "sessionContainers.map" in s]
+        self.assertEqual(selection_calls, [])
 
     async def test_all_rows_sold_out_gates_both_paths(self):
         row = "<div>2026/01/02 午場 銷售一空<button>>立即購</button></div>"
@@ -187,7 +192,11 @@ class TicketPlusFrontSegmentTest(unittest.IsolatedAsyncioTestCase):
         result = await ticketplus.nodriver_ticketplus_date_auto_select(
             tab, make_config(keyword='"午場"', pass_sold_out=True))
         self.assertFalse(result)
-        self.assertEqual(tab.evaluate_calls, [])
+        # Neither selection path ran (see the loading-placeholder
+        # test above for why this no longer asserts evaluate_calls == []).
+        selection_calls = [s for s in tab.evaluate_calls
+                           if ".eventClass" in s or "sessionContainers.map" in s]
+        self.assertEqual(selection_calls, [])
 
 
 class TicketPlusDomPathTest(unittest.IsolatedAsyncioTestCase):

@@ -74,6 +74,11 @@ _state.declare_session("purchase_completed", "the purchase latch reads it to sto
 _state.declare_session("purchase_done", "purchase latch; set by _update_purchase_latch and checked at main entry (moved from the dispatcher, issue #34)")
 _state.declare_session("order_page_visited", "queue/order visit memory across pages")
 
+# The session list renders ~1-2s after load; the date handler polls
+# for it at this interval for up to 3s (15 attempts) -- judging it
+# empty earlier would reload a page that has not rendered yet.
+CONST_TICKETPLUS_DATE_ROW_POLL_INTERVAL = 0.2
+
 # After the next button is clicked the site does one of three things: navigate to
 # the confirmation page, open a failure dialog, or enter its in-page queue. Poll
 # for all three instead of sleeping blind for a fixed window (#389).
@@ -543,11 +548,18 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
         # Use a descendant combinator (still matches the old direct-child layout too).
         # The session list renders ~1-2s after load; judging it empty earlier
         # reloads the page before it ever renders (blank-page reload loop).
-        for _ in range(15):
+        # Poll via the pause-check helper (issue #86): the raw tab.sleep
+        # this replaces was the only poll in this module that ignored
+        # the pause key; a pause aborts the pass, like the module's
+        # other polls abort their operations.
+        for attempt in range(15):
             area_list = await tab.query_selector_all('div#buyTicket div.sesstion-item')
             if area_list:
                 break
-            await tab.sleep(0.2)
+            if attempt < 14:
+                if await sleep_with_pause_check(tab, CONST_TICKETPLUS_DATE_ROW_POLL_INTERVAL, config_dict):
+                    debug.log("[TICKETPLUS DATE] Paused while waiting for the date list, aborting this pass")
+                    return False
         if not area_list:
             debug.log("date list still empty after 3s wait")
     except Exception as exc:
@@ -562,12 +574,26 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
     if area_list and len(area_list) > 0:
         debug.log("date_list_count:", len(area_list))
 
+        # Batch-fetch all row HTML in one CDP round-trip (issue #86,
+        # the kham precedent); a row missing from the batch result
+        # falls back to its own get_html() below.
+        all_row_htmls = None
+        try:
+            all_row_htmls = await tab.evaluate(
+                "Array.from(document.querySelectorAll('div#buyTicket div.sesstion-item')).map(r => r.outerHTML)"
+            )
+        except Exception:
+            all_row_htmls = None
+
         formated_area_list = []
-        for row in area_list:
+        for row_index, row in enumerate(area_list):
             row_text = ""
             row_html = ""
             try:
-                row_html = await row.get_html()
+                if all_row_htmls and row_index < len(all_row_htmls):
+                    row_html = all_row_htmls[row_index]
+                else:
+                    row_html = await row.get_html()
                 row_text = util.remove_html_tags(row_html)
             except Exception as exc:
                 debug.log("Date item processing failed:", exc)
