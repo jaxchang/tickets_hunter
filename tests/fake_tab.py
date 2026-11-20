@@ -34,6 +34,7 @@ class FakeElement:
         self.attrs = dict(attrs) if attrs else {}
         self._children = {}
         self._children_all = {}
+        self.query_calls = []
         self.click_calls = 0
         self.apply_calls = []
         self.send_keys_calls = []
@@ -54,6 +55,7 @@ class FakeElement:
         return elements
 
     async def query_selector(self, selector):
+        self.query_calls.append(selector)
         return self._children.get(selector)
 
     async def query_selector_all(self, selector):
