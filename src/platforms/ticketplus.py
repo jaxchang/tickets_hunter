@@ -520,9 +520,10 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
     """TicketPlus date auto selection."""
     debug = util.create_debug_logger(config_dict)
 
-    auto_select_mode = config_dict["date_auto_select"]["mode"]
-    date_keyword = config_dict["date_auto_select"]["date_keyword"].strip()
-    date_auto_fallback = config_dict.get('date_auto_fallback', False)
+    date_config = config_views.date_view(config_dict)
+    auto_select_mode = date_config["mode"]
+    date_keyword = date_config["keyword"]
+    date_auto_fallback = date_config["fallback"]
     pass_date_is_sold_out_enable = config_dict["tixcraft"]["pass_date_is_sold_out"]
     auto_reload_coming_soon_page_enable = config_dict["tixcraft"]["auto_reload_coming_soon_page"]
 
@@ -599,7 +600,7 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
     is_date_clicked = False
     if is_vue_ready and formated_area_list and len(formated_area_list) > 0:
         try:
-            original_keyword = config_dict["date_auto_select"]["date_keyword"].strip()
+            original_keyword = date_config["keyword"]
 
             # Primary: read sessionId from Vue data layer, navigate directly
             # Avoids clicking loading-state placeholder containers
@@ -672,7 +673,7 @@ async def nodriver_ticketplus_date_auto_select(tab, config_dict):
 
     if not is_date_clicked and is_vue_ready and formated_area_list and len(formated_area_list) > 0:
         try:
-            original_keyword = config_dict["date_auto_select"]["date_keyword"].strip()
+            original_keyword = date_config["keyword"]
 
             # Collect first, decide exclusion in Python, then click. Keeping the
             # exclusion test on the Python side is what makes TicketPlus agree
