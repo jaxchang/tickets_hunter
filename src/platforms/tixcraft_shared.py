@@ -69,6 +69,7 @@ _state.declare_session("cookie_accepted", "cookie banner is accepted once per ru
 _state.declare_session("html_lang", "page language cached for the whole run")
 _state.declare_session("reload_disabled_logged_tags", "log-once tags for the whole run")
 _state.declare_session_prefix("ticket_assigned_", "per-ticket assignment markers keyed by URL and ticket count; kept for the run so a set count is not re-entered; capped at 128 entries, oldest evicted first (issue #92)")
+_state.declare_session_prefix("ticket_unavailable_backs_", "per-ticket-URL count of returns to area selection after the target ticket count proved unavailable (issue #98); log visibility only, cleared on assignment success and by _forget_ticket_assigned; capped at 128 entries, oldest evicted first, like ticket_assigned_")
 
 
 # Keywords that identify serial-number / membership-code / promo-code style

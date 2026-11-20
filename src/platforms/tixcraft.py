@@ -1132,6 +1132,7 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
     ticket_number = str(config_views.ticket_number(config_dict))
     allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False)
     ticket_state_key = f"ticket_assigned_{current_url}_{ticket_number}_{int(allow_less_tickets)}"
+    backs_key = f"ticket_unavailable_backs_{current_url}"
 
     # Skip this iteration while a captcha submit is in flight (awaiting navigation).
     if _state.get("captcha_submit_until", 0) > time.time():
@@ -1178,18 +1179,43 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
     # Record state after successful setting
     if is_ticket_number_assigned:
         _state[ticket_state_key] = True
+        _state.pop(backs_key, None)
         _cap_ticket_assigned_markers()
         debug.log("Ticket number set successfully, starting OCR captcha processing")
         await nodriver_tixcraft_ticket_main_ocr(tab, config_dict, ocr, Captcha_Browser, domain_name)
     else:
-        # T026: Fix Issue #174 - reload page when ticket number cannot be set
-        # This prevents infinite loop when desired ticket count is unavailable
-        debug.log("[TICKET SELECT] Ticket count unavailable, reloading page to retry...")
+        # The target count is unavailable for the chosen ticket type
+        # (e.g. 2 requested, 1 left, allow_less_tickets off). Reloading
+        # this page (the pre-#98 behaviour, T026 for upstream issue
+        # #174) retries the same select forever, so return to area
+        # selection instead and let the flow pick again -- another
+        # area may hold the count, and the cycle repeats until the
+        # count is secured (issue #98). tab.back() is the way back
+        # ibon already uses for sold-out areas; if it fails or the
+        # browser stays on this page, fall back to the reload.
+        backs = _state.get(backs_key, 0) + 1
+        _state[backs_key] = backs
+        _cap_ticket_unavailable_backs()
+        debug.log(f"[TICKET SELECT] Ticket count {ticket_number} unavailable for the selected ticket type (return #{backs}), going back to area selection to retry...")
+        back_ok = False
         try:
-            # Wait based on auto_reload_page_interval setting
+            # Pace the cycle like the reload path did.
             interval = config_views.reload_interval(config_dict)
             if interval > 0:
                 await asyncio.sleep(interval)
+            await tab.back()
+            back_ok = True
+        except Exception as back_exc:
+            debug.log(f"[TICKET SELECT] Back navigation failed: {back_exc}")
+        if back_ok:
+            try:
+                landed_url, _ = await nodriver_current_url(tab)
+                if "/ticket/ticket/" not in landed_url:
+                    return
+                debug.log("[TICKET SELECT] Still on the ticket page after going back, reloading to retry...")
+            except Exception:
+                pass
+        try:
             await tab.reload()
         except Exception as reload_exc:
             debug.log(f"[TICKET SELECT] Reload failed: {reload_exc}")
@@ -1220,6 +1246,7 @@ def _forget_ticket_assigned(current_url):
     prefix = f"ticket_assigned_{current_url}_"
     for key in [k for k in _state if k.startswith(prefix)]:
         del _state[key]
+    _state.pop(f"ticket_unavailable_backs_{current_url}", None)
 
 
 # The ticket_assigned_* markers are kept for the run (see the
@@ -1234,6 +1261,20 @@ CONST_TIXCRAFT_TICKET_ASSIGNED_MAX = 128
 def _cap_ticket_assigned_markers():
     """Evict the oldest ticket_assigned_* markers beyond the cap."""
     keys = [k for k in _state if k.startswith("ticket_assigned_")]
+    excess = len(keys) - CONST_TIXCRAFT_TICKET_ASSIGNED_MAX
+    if excess <= 0:
+        return
+    for key in keys[:excess]:
+        del _state[key]
+
+
+def _cap_ticket_unavailable_backs():
+    """Evict the oldest ticket_unavailable_backs_* counters beyond the
+    same cap as the assignment markers (issue #98): the key embeds the
+    ticket URL, so a long run across many failing events would
+    otherwise grow the family without bound. The counters gate
+    nothing -- an evicted URL's log count simply restarts."""
+    keys = [k for k in _state if k.startswith("ticket_unavailable_backs_")]
     excess = len(keys) - CONST_TIXCRAFT_TICKET_ASSIGNED_MAX
     if excess <= 0:
         return
