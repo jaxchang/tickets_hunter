@@ -38,6 +38,46 @@ class CloudflareLayer3CharacterizationTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result)
 
 
+class CloudflareInterstitialMarkerTest(unittest.IsolatedAsyncioTestCase):
+    """Full-page interstitial markers (issue #102).
+
+    The 2026-11-20 ibon incident: a full-page Cloudflare interstitial
+    (title "請稍候...", body "驗證您是否是人類") has no Turnstile
+    iframe for Layers 1-2 and none of Layer 3's English HTML keywords,
+    so the main loop never saw it and ibon's local 15s guard cycled
+    forever. The verdict still comes from the in-page evaluate, so
+    the pins live on the marker constants and on the script the
+    detector builds from them.
+    """
+
+    async def _layer3_script(self):
+        tab = FakeTab(url="https://example.com/")
+        tab.set_content("<html><body>concert tickets</body></html>")
+        await nodriver_common.detect_cloudflare_challenge(tab)
+        scripts = [s for s in tab.evaluate_calls if "outerHTML" in str(s)]
+        self.assertEqual(len(scripts), 1)
+        return scripts[0]
+
+    def test_html_indicators_include_challenge_platform_path(self):
+        self.assertIn("/cdn-cgi/challenge-platform/",
+                      nodriver_common.CLOUDFLARE_HTML_INDICATORS)
+
+    def test_title_and_text_marker_sets(self):
+        self.assertEqual(nodriver_common.CLOUDFLARE_TITLE_MARKERS, ["請稍候"])
+        self.assertEqual(nodriver_common.CLOUDFLARE_TEXT_MARKERS, ["驗證您是否是人類"])
+        # The generic "正在驗證" alone is deliberately not a marker:
+        # too broad for a detector whose false positive parks the bot.
+        self.assertNotIn("正在驗證", nodriver_common.CLOUDFLARE_TEXT_MARKERS)
+
+    async def test_script_scans_title_and_inner_text(self):
+        script = await self._layer3_script()
+        self.assertIn("document.title", script)
+        self.assertIn("innerText", script)
+        self.assertIn("請稍候", script)
+        self.assertIn("驗證您是否是人類", script)
+        self.assertIn("/cdn-cgi/challenge-platform/", script)
+
+
 class CloudflareLayer3InPageTest(unittest.IsolatedAsyncioTestCase):
     async def test_keyword_verdict_detected_without_get_content(self):
         tab = FakeTab(url="https://example.com/")
