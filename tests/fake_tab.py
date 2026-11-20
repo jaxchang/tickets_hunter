@@ -113,6 +113,9 @@ class FakeTab:
         self.evaluate_calls = []
         self.get_content_calls = 0
         self.close_calls = 0
+        self.back_calls = 0
+        self.back_error = None
+        self.back_target_url = None
         self._content = ""
         self._elements = {}
         self._elements_all = {}
@@ -204,6 +207,13 @@ class FakeTab:
 
     async def reload(self):
         self.reload_calls += 1
+
+    async def back(self):
+        self.back_calls += 1
+        if self.back_error is not None:
+            raise self.back_error
+        if self.back_target_url is not None:
+            self.url = self.back_target_url
 
     async def sleep(self, seconds):
         # Recorded, not performed: tests pace themselves with the real

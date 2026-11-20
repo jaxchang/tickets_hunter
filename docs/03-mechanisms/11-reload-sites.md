@@ -34,7 +34,7 @@
 
 | 平台 | 檔案 | 位置 | 觸發原因 |
 | --- | --- | --- | --- |
-| 拓元 | `src/platforms/tixcraft.py` | `nodriver_tixcraft_ticket_main` | 張數無法設定時刷新重試（#174） |
+| 拓元 | `src/platforms/tixcraft.py` | `nodriver_tixcraft_ticket_main` | 張數無法設定時先以 tab.back() 回選區重試（#98）；back 失敗或未離開購票頁才刷新（原 #174 行為降為退路） |
 | Ticketmaster | `src/platforms/tixcraft.py` | `nodriver_tixcraft_main` | 區域重試超過 30 次後刷新（#378） |
 
 ## 其他平台
