@@ -53,10 +53,11 @@
 TixCraft 的票頁可能有多個 `<select>`（對應不同票種/價位）。系統先根據 `area_keyword` 篩選目標票種，再對該 select 設定票數：
 
 - 透過父元素 `<tr>` 中的 `<h4>` 或 `<td class="fcBlue">` 提取票種名稱
-- 票種頁沿用區域選擇的設定鍵：`area_auto_select.area_keyword`、`area_auto_select.mode`、`area_auto_fallback`、`keyword_exclude`，不是另一組獨立設定
-- 單一票種時自動選擇
-- 所有票種售完時回傳失敗，觸發頁面重新載入
-- `tixcraft.allow_less_tickets=false`（預設）時，票數下拉選單必須能選到使用者設定張數，否則回傳失敗並重新整理等待
+- 票種頁沿用區域選擇的設定鍵：`area_auto_select.area_keyword`、`area_auto_select.mode`、`keyword_exclude`，不是另一組獨立設定；`area_auto_fallback` 只管選區頁，不影響票種挑選
+- 關鍵字比對是**優先序，不是篩選**（#106，ADR 0013）：第一個命中的票種先選；全數未命中時依 `mode` 從可用票種挑一張，不算失敗。唯一的硬過濾是 `keyword_exclude`
+- 單一票種時自動選擇（mode 挑選的自然結果）
+- 無可用票種（全數售完／disabled，或被排除關鍵字剔光）時回傳 reason `no_valid_types`，由 `nodriver_tixcraft_ticket_main` 退回選區重選，log 與退回計數與「張數不足」分開
+- `tixcraft.allow_less_tickets=false`（預設）時，票數下拉選單必須能選到使用者設定張數，否則退回選區重選（#98/#99），不留在票種頁重整
 - `tixcraft.allow_less_tickets=true` 時，若設定張數不可選，會改選小於設定張數的最大可用張數（例如設定 4 張、可選 3/2/1 時選 3）
 
 #### 票種名稱的取值範圍（Common Trap）
@@ -158,4 +159,5 @@ React 18 會將同步的多次 `setState` 合併為一次更新。因此不能�
 - **2026-03**: 補充核心實作內容、各平台差異表格與常見問題
 - **2026-06**: 補充拓元 `allow_less_tickets` 不足張數控制
 - **2026-08**: 補充票種名稱取值範圍、排除關鍵字套用位置、候選全數被排除的跨平台差異（#309）
+- **2026-11**: 票種關鍵字改為優先序（未命中依 mode 挑選）、`no_valid_types` 失敗分流（#106，ADR 0013）
 - **2025-11**: 初始文件建立
