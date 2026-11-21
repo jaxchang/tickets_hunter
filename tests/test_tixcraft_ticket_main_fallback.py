@@ -234,6 +234,35 @@ class TicketMainCountFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(keys), cap)
         self.assertNotIn("ticket_no_type_backs_https://tixcraft.com/ticket/ticket/E0", keys)
 
+    async def test_paths_write_no_undeclared_state(self):
+        # Guardrail (issue #108): PageState tracks writes to keys that
+        # were never declared, so a new _state family that forgets its
+        # declare_session(_prefix) in tixcraft_shared shows up here
+        # instead of waiting for a reviewer to catch it. Delta, not
+        # equality: _undeclared accumulates for the whole process and
+        # the module _state is shared across test files. The paths run
+        # under a guardrail-only URL for the same reason: the counters
+        # are keyed by URL, and _undeclared is never reset, so under
+        # TICKET_URL an earlier sibling test's write of the same key
+        # would already sit in the "before" snapshot and mask a missing
+        # declaration.
+        guard_url = "https://tixcraft.com/ticket/ticket/26_GUARD/1/1"
+        before = set(tixcraft._state.undeclared_keys())
+
+        self.tab.url = guard_url
+        self.stub_assignment(False)
+        self.tab.back_target_url = AREA_URL
+        await self.run_main()
+        self.stub_assignment(False, reason="no_valid_types")
+        self.tab.url = guard_url
+        await self.run_main()
+        self.stub_assignment(True)
+        self.tab.url = guard_url
+        await self.run_main()
+
+        self.assertEqual(set(tixcraft._state.undeclared_keys()) - before,
+                         set())
+
     async def test_success_first_try_never_goes_back(self):
         self.stub_assignment(True)
 
