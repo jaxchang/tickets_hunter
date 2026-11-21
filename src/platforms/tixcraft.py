@@ -841,12 +841,18 @@ async def nodriver_ticket_number_select_fill(tab, select_obj, ticket_number, sel
 
 async def nodriver_tixcraft_assign_ticket_number(tab, config_dict):
     """
-    Enhanced ticket type selection with keyword matching support
+    Ticket type selection: keyword match preferred, mode pick otherwise.
+
+    Returns (is_ticket_number_assigned, select_obj, select_id, reason).
+    reason is None when a ticket type was selected (the count may still
+    be unset -- the caller fills it), "no_valid_types" when the page
+    offers no usable ticket type, and the pause bail-out returns
+    (False, None, None, None): no selection was attempted.
     支援票種關鍵字選擇（indievox 類型 B 頁面：直接跳到 /ticket/ticket/）
     """
     # 函數開始時檢查暫停
     if await check_and_handle_pause(config_dict):
-        return False
+        return False, None, None, None
 
     debug = util.create_debug_logger(config_dict)
     is_ticket_number_assigned = False
@@ -880,7 +886,6 @@ async def nodriver_tixcraft_assign_ticket_number(tab, config_dict):
     import json
     area_config = config_views.area_view(config_dict)
     area_keyword = area_config["keyword"].strip()
-    area_auto_fallback = area_config["fallback"]
     auto_select_mode = area_config["mode"]
 
     # Parse keywords using JSON
@@ -994,11 +999,20 @@ async def nodriver_tixcraft_assign_ticket_number(tab, config_dict):
 
     if len(valid_ticket_types) == 0:
         debug.log("[TICKET SELECT] Warning: All ticket types are sold out or disabled")
-        return False, None, None
+        return False, None, None, "no_valid_types"
 
-    # Keyword matching logic (similar to area selection)
+    # Keyword matching is a preference, not a gate (issue #106,
+    # ADR 0013): the area keyword's real job ended at area selection,
+    # and a ticket type whose name does not contain it is not thereby
+    # unwanted -- the 2026-11-21 ARTMS page named its area VIP區 but
+    # its types 全票..., and the old strict gate (keyword miss +
+    # area_auto_fallback off) selected nothing at all. The only hard
+    # filter is keyword_exclude, already applied while collecting
+    # candidates above. So the first keyword match wins; when nothing
+    # matches, the pick falls through to the auto-select mode over
+    # every valid type, whatever area_auto_fallback says -- that
+    # setting governs the area page only.
     matched_ticket = None
-    is_keyword_matched = False
 
     if area_keyword_array:
         debug.log(f"[TICKET SELECT] Starting keyword matching with {len(area_keyword_array)} keyword(s)")
@@ -1023,7 +1037,6 @@ async def nodriver_tixcraft_assign_ticket_number(tab, config_dict):
 
                 if is_match:
                     matched_ticket = ticket_info
-                    is_keyword_matched = True
                     debug.log(f"[TICKET SELECT]   [OK] Keyword matched: '{ticket_name}'")
                     break
 
@@ -1031,40 +1044,29 @@ async def nodriver_tixcraft_assign_ticket_number(tab, config_dict):
                 break  # Early return: first match wins
 
         if not matched_ticket:
-            debug.log(f"[TICKET SELECT] All keywords failed to match")
+            debug.log(f"[TICKET SELECT] No keyword matched, selecting by mode")
 
-    # Single option auto-select: when only one valid ticket type exists, select it
-    # directly. keyword_exclude was already applied while collecting candidates.
-    if not matched_ticket and len(valid_ticket_types) == 1:
-        matched_ticket = valid_ticket_types[0]
-        debug.log(f"[TICKET SELECT] Single option auto-select: '{matched_ticket['name']}'")
-
-    # Fallback logic (similar to area selection)
     if not matched_ticket:
-        if area_keyword_array and not area_auto_fallback:
-            # Strict mode: no keyword match and fallback disabled
-            debug.log(f"[TICKET SELECT] area_auto_fallback=false, fallback is disabled")
-            debug.log(f"[TICKET SELECT] No ticket type selected")
-            return False, None, None
-        else:
-            # Fallback enabled or no keyword specified
-            if area_keyword_array:
-                debug.log(f"[TICKET SELECT] area_auto_fallback=true, using fallback selection")
+        # Mode pick over every valid type (a single candidate is
+        # simply picked -- the old single-option auto-select).
+        picked_select = util.get_target_item_from_matched_list(
+            [t['select'] for t in valid_ticket_types],
+            auto_select_mode
+        )
+        # Find the ticket_info for the picked select
+        for ticket_info in valid_ticket_types:
+            if ticket_info['select'] == picked_select:
+                matched_ticket = ticket_info
+                break
 
-            # Select based on auto_select_mode
-            matched_ticket = util.get_target_item_from_matched_list(
-                [t['select'] for t in valid_ticket_types],
-                auto_select_mode
-            )
-            # Find the ticket_info for the matched select
-            for ticket_info in valid_ticket_types:
-                if ticket_info['select'] == matched_ticket:
-                    matched_ticket = ticket_info
-                    break
+        if matched_ticket:
+            debug.log(f"[TICKET SELECT] Selected ticket type (mode-based): '{matched_ticket['name']}'")
 
-            if matched_ticket:
-                selection_type = "fallback" if area_keyword_array else "mode-based"
-                debug.log(f"[TICKET SELECT] Selected ticket type ({selection_type}): '{matched_ticket['name']}'")
+    if not matched_ticket:
+        # Defensive: a non-empty candidate list always yields a pick
+        # above; keep the failure contract total anyway.
+        debug.log("[TICKET SELECT] Warning: mode pick yielded no ticket type")
+        return False, None, None, "no_valid_types"
 
     # Use the matched ticket select
     select_obj = matched_ticket['select'] if matched_ticket else None
@@ -1100,7 +1102,7 @@ async def nodriver_tixcraft_assign_ticket_number(tab, config_dict):
             debug.log(f"Failed to check current selected value: {exc}")
 
     # 回傳結果：select_obj 和 select_id 用於後續操作
-    return is_ticket_number_assigned, select_obj, select_id
+    return is_ticket_number_assigned, select_obj, select_id, None
 
 async def nodriver_tixcraft_ticket_main_agree(tab, config_dict):
     debug = util.create_debug_logger(config_dict)
@@ -1133,6 +1135,7 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
     allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False)
     ticket_state_key = f"ticket_assigned_{current_url}_{ticket_number}_{int(allow_less_tickets)}"
     backs_key = f"ticket_unavailable_backs_{current_url}"
+    notype_key = f"ticket_no_type_backs_{current_url}"
 
     # Skip this iteration while a captcha submit is in flight (awaiting navigation).
     if _state.get("captcha_submit_until", 0) > time.time():
@@ -1164,9 +1167,15 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
 
     # PS: some events on tixcraft have multi <select>.
     # Fix Issue #200/#201: Now returns select_id for correct element targeting
-    is_ticket_number_assigned, select_obj, select_id = await nodriver_tixcraft_assign_ticket_number(tab, config_dict)
+    is_ticket_number_assigned, select_obj, select_id, assign_reason = await nodriver_tixcraft_assign_ticket_number(tab, config_dict)
 
-    if not is_ticket_number_assigned:
+    if select_obj is None and assign_reason is None:
+        # assign bailed out before selecting (the pause file appeared
+        # after this pass's own pause check): nothing was attempted,
+        # so there is nothing to fill and nothing to retry against.
+        return False
+
+    if not is_ticket_number_assigned and assign_reason is None:
         debug.log(f"Setting ticket number: {ticket_number}")
         is_ticket_number_assigned = await nodriver_ticket_number_select_fill(
             tab,
@@ -1180,23 +1189,37 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
     if is_ticket_number_assigned:
         _state[ticket_state_key] = True
         _state.pop(backs_key, None)
+        _state.pop(notype_key, None)
         _cap_ticket_assigned_markers()
         debug.log("Ticket number set successfully, starting OCR captcha processing")
         await nodriver_tixcraft_ticket_main_ocr(tab, config_dict, ocr, Captcha_Browser, domain_name)
     else:
-        # The target count is unavailable for the chosen ticket type
-        # (e.g. 2 requested, 1 left, allow_less_tickets off). Reloading
-        # this page (the pre-#98 behaviour, T026 for upstream issue
-        # #174) retries the same select forever, so return to area
-        # selection instead and let the flow pick again -- another
-        # area may hold the count, and the cycle repeats until the
-        # count is secured (issue #98). tab.back() is the way back
-        # ibon already uses for sold-out areas; if it fails or the
-        # browser stays on this page, fall back to the reload.
-        backs = _state.get(backs_key, 0) + 1
-        _state[backs_key] = backs
-        _cap_ticket_unavailable_backs()
-        debug.log(f"[TICKET SELECT] Ticket count {ticket_number} unavailable for the selected ticket type (return #{backs}), going back to area selection to retry...")
+        # Two failures land here, and the log line and the return
+        # counter name which one it was (issue #106):
+        # - assign_reason "no_valid_types": this area offers no usable
+        #   ticket type at all (every type disabled or sold out, or
+        #   filtered away by keyword_exclude); no count was attempted.
+        # - assign_reason None: a ticket type was selected but the
+        #   target count cannot be set for it (e.g. 2 requested, 1
+        #   left, allow_less_tickets off).
+        # Both share the way back: reloading this page (the pre-#98
+        # behaviour, T026 for upstream issue #174) retries the same
+        # state forever, so return to area selection instead and let
+        # the flow pick again -- another area may hold the count or a
+        # usable type -- and the cycle repeats until the purchase goes
+        # through (issue #98). tab.back() is the way back ibon already
+        # uses for sold-out areas; if it fails or the browser stays on
+        # this page, fall back to the reload.
+        if assign_reason == "no_valid_types":
+            counter_key = notype_key
+            failure_text = "No usable ticket type in this area"
+        else:
+            counter_key = backs_key
+            failure_text = f"Ticket count {ticket_number} unavailable for the selected ticket type"
+        backs = _state.get(counter_key, 0) + 1
+        _state[counter_key] = backs
+        _cap_ticket_backs_counters()
+        debug.log(f"[TICKET SELECT] {failure_text} (return #{backs}), going back to area selection to retry...")
         back_ok = False
         try:
             # Pace the cycle like the reload path did.
@@ -1247,6 +1270,7 @@ def _forget_ticket_assigned(current_url):
     for key in [k for k in _state if k.startswith(prefix)]:
         del _state[key]
     _state.pop(f"ticket_unavailable_backs_{current_url}", None)
+    _state.pop(f"ticket_no_type_backs_{current_url}", None)
 
 
 # The ticket_assigned_* markers are kept for the run (see the
@@ -1268,18 +1292,19 @@ def _cap_ticket_assigned_markers():
         del _state[key]
 
 
-def _cap_ticket_unavailable_backs():
-    """Evict the oldest ticket_unavailable_backs_* counters beyond the
-    same cap as the assignment markers (issue #98): the key embeds the
+def _cap_ticket_backs_counters():
+    """Evict the oldest per-URL return counters beyond the same cap
+    as the assignment markers (issues #98/#106): each key embeds the
     ticket URL, so a long run across many failing events would
-    otherwise grow the family without bound. The counters gate
-    nothing -- an evicted URL's log count simply restarts."""
-    keys = [k for k in _state if k.startswith("ticket_unavailable_backs_")]
-    excess = len(keys) - CONST_TIXCRAFT_TICKET_ASSIGNED_MAX
-    if excess <= 0:
-        return
-    for key in keys[:excess]:
-        del _state[key]
+    otherwise grow every counter family without bound. The counters
+    gate nothing -- an evicted URL's log count simply restarts."""
+    for prefix in ("ticket_unavailable_backs_", "ticket_no_type_backs_"):
+        keys = [k for k in _state if k.startswith(prefix)]
+        excess = len(keys) - CONST_TIXCRAFT_TICKET_ASSIGNED_MAX
+        if excess <= 0:
+            continue
+        for key in keys[:excess]:
+            del _state[key]
 
 
 async def nodriver_tixcraft_submit_without_captcha(tab, config_dict):

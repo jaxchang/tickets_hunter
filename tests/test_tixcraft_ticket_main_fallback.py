@@ -13,6 +13,12 @@ the module seam: assign and select_fill return their real failure
 outputs for the "target option missing" DOM state, which the JS in
 select_fill produces deterministically. Everything composed in
 nodriver_tixcraft_ticket_main itself is the real code.
+
+Issue #106 adds the second failure kind: assign reports
+"no_valid_types" when the area has no usable ticket type at all. That
+path goes back with its own counter and its own log line instead of
+borrowing the count's, and select_fill is never called (there is no
+select to fill).
 """
 
 import os
@@ -30,6 +36,7 @@ from fake_tab import FakeElement, FakeTab  # noqa: E402
 TICKET_URL = "https://tixcraft.com/ticket/ticket/26_TEST/1/1"
 AREA_URL = "https://tixcraft.com/ticket/area/26_TEST/1"
 BACKS_KEY = f"ticket_unavailable_backs_{TICKET_URL}"
+NOTYPE_KEY = f"ticket_no_type_backs_{TICKET_URL}"
 
 
 def make_config():
@@ -45,6 +52,7 @@ class TicketMainCountFallbackTests(unittest.IsolatedAsyncioTestCase):
         tixcraft._state.clear()
         self.tab = FakeTab(url=TICKET_URL)
         self.ocr_calls = 0
+        self.fill_calls = 0
 
         async def fake_url(tab, config_dict=None):
             return tab.url, False
@@ -69,12 +77,16 @@ class TicketMainCountFallbackTests(unittest.IsolatedAsyncioTestCase):
             patcher.stop()
         tixcraft._state.clear()
 
-    def stub_assignment(self, assigned):
+    def stub_assignment(self, assigned, reason=None):
         async def fake_assign(tab, config_dict):
-            return assigned, FakeElement(), "TicketForm_ticketPrice_1"
+            if reason is not None:
+                # A failed selection hands back no select at all.
+                return assigned, None, None, reason
+            return assigned, FakeElement(), "TicketForm_ticketPrice_1", None
 
         async def fake_fill(tab, select_obj, ticket_number, select_id=None,
                             allow_less_tickets=False):
+            self.fill_calls += 1
             return assigned
 
         self.patchers.append(mock.patch.object(
@@ -143,13 +155,84 @@ class TicketMainCountFallbackTests(unittest.IsolatedAsyncioTestCase):
         for i in range(cap + 5):
             tixcraft._state[f"ticket_unavailable_backs_https://tixcraft.com/ticket/ticket/E{i}"] = 1
 
-        tixcraft._cap_ticket_unavailable_backs()
+        tixcraft._cap_ticket_backs_counters()
 
         keys = [k for k in tixcraft._state
                 if k.startswith("ticket_unavailable_backs_")]
         self.assertEqual(len(keys), cap)
         self.assertNotIn("ticket_unavailable_backs_https://tixcraft.com/ticket/ticket/E0", keys)
         self.assertIn(f"ticket_unavailable_backs_https://tixcraft.com/ticket/ticket/E{cap + 4}", keys)
+
+    async def test_assign_pause_bail_out_ends_the_pass_quietly(self):
+        async def fake_assign(tab, config_dict):
+            return False, None, None, None
+
+        async def fake_fill(tab, select_obj, ticket_number, select_id=None,
+                            allow_less_tickets=False):
+            self.fill_calls += 1
+            return False
+
+        self.patchers.append(mock.patch.object(
+            tixcraft, "nodriver_tixcraft_assign_ticket_number", fake_assign))
+        self.patchers.append(mock.patch.object(
+            tixcraft, "nodriver_ticket_number_select_fill", fake_fill))
+        for patcher in self.patchers[-2:]:
+            patcher.start()
+
+        result = await tixcraft.nodriver_tixcraft_ticket_main(
+            self.tab, make_config(), None, None, "tixcraft.com")
+
+        self.assertFalse(result)
+        self.assertEqual(self.fill_calls, 0)
+        self.assertEqual(self.tab.back_calls, 0)
+        self.assertEqual(self.tab.reload_calls, 0)
+        self.assertEqual(self.ocr_calls, 0)
+        self.assertNotIn(BACKS_KEY, tixcraft._state)
+        self.assertNotIn(NOTYPE_KEY, tixcraft._state)
+
+    async def test_no_valid_types_goes_back_with_its_own_counter(self):
+        self.stub_assignment(False, reason="no_valid_types")
+        self.tab.back_target_url = AREA_URL
+
+        await self.run_main()
+
+        self.assertEqual(self.fill_calls, 0)
+        self.assertEqual(self.tab.back_calls, 1)
+        self.assertEqual(self.tab.reload_calls, 0)
+        self.assertEqual(self.ocr_calls, 0)
+        self.assertEqual(tixcraft._state[NOTYPE_KEY], 1)
+        self.assertNotIn(BACKS_KEY, tixcraft._state)
+
+    async def test_success_clears_both_back_counters(self):
+        tixcraft._state[BACKS_KEY] = 3
+        tixcraft._state[NOTYPE_KEY] = 1
+        self.stub_assignment(True)
+
+        await self.run_main()
+
+        self.assertNotIn(BACKS_KEY, tixcraft._state)
+        self.assertNotIn(NOTYPE_KEY, tixcraft._state)
+
+    def test_forget_clears_both_back_counters(self):
+        tixcraft._state[BACKS_KEY] = 3
+        tixcraft._state[NOTYPE_KEY] = 1
+
+        tixcraft._forget_ticket_assigned(TICKET_URL)
+
+        self.assertNotIn(BACKS_KEY, tixcraft._state)
+        self.assertNotIn(NOTYPE_KEY, tixcraft._state)
+
+    async def test_notype_counters_are_capped_oldest_first(self):
+        cap = tixcraft.CONST_TIXCRAFT_TICKET_ASSIGNED_MAX
+        for i in range(cap + 5):
+            tixcraft._state[f"ticket_no_type_backs_https://tixcraft.com/ticket/ticket/E{i}"] = 1
+
+        tixcraft._cap_ticket_backs_counters()
+
+        keys = [k for k in tixcraft._state
+                if k.startswith("ticket_no_type_backs_")]
+        self.assertEqual(len(keys), cap)
+        self.assertNotIn("ticket_no_type_backs_https://tixcraft.com/ticket/ticket/E0", keys)
 
     async def test_success_first_try_never_goes_back(self):
         self.stub_assignment(True)
